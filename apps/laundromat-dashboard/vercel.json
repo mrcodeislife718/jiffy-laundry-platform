@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build -w laundromat-dashboard",
+  "outputDirectory": "apps/laundromat-dashboard/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "nodeVersion": "20.x"
+}
