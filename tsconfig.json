@@ -10,8 +10,8 @@
     "strict": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["node"]
   }
