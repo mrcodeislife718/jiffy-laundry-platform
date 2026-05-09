@@ -48,8 +48,8 @@ export default function RootLayout() {
       <Tabs.Screen
         name="go-online"
         options={{
-          title: 'Dispatch',
-          tabBarIcon: ({ color }) => <Ionicons name="radio-button-on" size={24} color={color} />,
+          title: 'Home',
+          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
