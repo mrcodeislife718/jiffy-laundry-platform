@@ -1,346 +1,248 @@
-<!-- markdownlint-disable MD032 MD026 MD036 -->
-# CLIENT_HANDOFF.md — JiffyLaundry Platform
+# Client Handoff — JiffyLaundry
 
-## Welcome to JiffyLaundry
-
-This document is your quickstart guide to using the JiffyLaundry platform. The system has four main applications:
-
-1. **Customer App** — Where customers place orders, track deliveries, and manage accounts
-2. **Driver App** — Where drivers pick up orders and track deliveries
-3. **Admin Dashboard** — Where administrators manage orders, dispatch, and platform operations
-4. **Laundromat Dashboard** — Where laundromat operators process and track cleaning orders
+> **Status:** Production-ready. All TypeScript errors resolved. Repository pushed to GitHub.
+> **Handoff date:** _to be filled by delivery team_
+> **Repository:** <https://github.com/mrcodeislife718/jiffy-laundry-platform>
 
 ---
 
-## Getting Started
+## 1. Executive Summary
 
-### For Customers
+You are receiving a complete, production-grade laundry logistics platform consisting of:
 
-**Login:**
-1. Open the JiffyLaundry customer app
-2. Click "Sign In"
-3. Enter email and password
-4. Click "Sign In" button
-5. You're now logged in and can place orders
+1. **Customer mobile app** (iOS + Android, via Expo)
+2. **Driver mobile app** (iOS + Android, with background GPS)
+3. **Admin web dashboard** (Next.js)
+4. **Staff/laundromat web dashboard** (Next.js, tablet-optimized)
+5. **Backend API** (Node.js + Supabase + Redis + Stripe)
 
-**If you don't have an account:**
-1. Click "Sign Up" instead
-2. Enter: Full Name, Email, Password
-3. Verify your email (if prompted)
-4. You're now signed up and logged in
-
-### For Admin Staff
-
-**Login:**
-1. Open the Admin Dashboard (web)
-2. Enter email and password
-3. Click "Sign In"
-4. You must have an admin account to access
-
-### For Drivers
-
-**Login:**
-1. Open the JiffyLaundry driver app
-2. Enter email and password
-3. Click "Sign In"
-4. Click "Go Online" to start accepting orders
-5. You can now see assigned orders
-
-### For Laundromat Staff
-
-**Login:**
-1. Open the Laundromat Dashboard (web)
-2. Enter email and password
-3. Click "Sign In"
-4. You'll see orders assigned to your laundromat
+Every order is tracked against a **24-hour SLA**. If the SLA is breached, the system **automatically refunds the customer** and logs the event. No human action required.
 
 ---
 
-## How to Place an Order (Customer)
+## 2. What's Included
 
-1. **Select Services**
-   - Click "Schedule" or "Create Order"
-   - Browse available services (Wash & Fold, Dry Clean, etc.)
-   - Select a service and quantity (e.g., 5 lbs Wash & Fold)
+### Source code
+- Full monorepo at the repository URL above
+- Branch: `main` (always deployable)
+- All four apps + backend + shared packages
+- Database migrations + seed data
+- Docker compose for local dev
+- CI-ready scripts
 
-2. **Confirm Pickup Details**
-   - Select pickup date and time window
-   - Pickup address defaults to your saved default address
-   - Click "Continue"
-
-3. **Review and Checkout**
-   - Review order summary:
-     - Service items and prices
-     - Pickup fee: $2.00
-     - Service fee: 8%
-     - Tax: 8.875%
-     - **Total**
-   - Click "Continue to Payment"
-
-4. **Payment**
-   - Review order once more
-   - Enter card details (test: 4242 4242 4242 4242)
-   - Click "Pay"
-   - Payment confirms and order is placed
-
-5. **Track Order**
-   - You'll be redirected to tracking page
-   - See real-time status updates
-   - Driver location shows when driver has picked up
+### Documentation in this repository
+| Document | Purpose |
+|---|---|
+| `README.md` | Project overview & quick-start |
+| `CLIENT_HANDOFF.md` | This file |
+| `CLIENT_HOW_TO_GUIDE.md` | Step-by-step usage guide for operators |
+| `ADMIN_OPERATIONS_GUIDE.md` | Day-to-day admin workflows |
+| `DEPLOYMENT.md` | Production deployment runbook |
+| `PRODUCTION_OPERATIONS.md` | On-call / SRE reference |
+| `TROUBLESHOOTING.md` | Known issues & fixes |
+| `QA_TEST_PLAN.md` | QA acceptance test cases |
 
 ---
 
-## How to View Orders (Admin)
+## 3. Accounts You Need to Own
 
-1. **Go to Orders**
-   - Click "Orders" in the admin menu
-   - You'll see all orders in the system
+These accounts power the live service. Transfer of ownership must be completed before go-live.
 
-2. **Order List Columns**
-   - **Order ID** — Unique order identifier
-   - **Customer** — Customer name and phone
-   - **Status** — Current order status (pending_payment, accepted, picked_up, etc.)
-   - **Total** — Order total amount
-   - **Payment** — Payment status (unpaid, paid, refunded)
-   - **Created** — When order was placed
+| Service | Purpose | Action required |
+|---|---|---|
+| **Supabase** | Database, auth, storage | Transfer project to client org |
+| **Stripe** | Payments + refunds | Transfer to client business account |
+| **Vercel** | Web app hosting (admin + staff) | Add client billing & ownership |
+| **Railway** (or Render) | Backend API hosting | Transfer project ownership |
+| **Upstash** (or self-hosted) | Redis for queues | Transfer / re-provision |
+| **Expo** | Mobile build & push notifications | Add client as admin |
+| **Apple Developer** | iOS App Store distribution | Client enrolls ($99/yr) |
+| **Google Play Console** | Android distribution | Client enrolls ($25 one-time) |
+| **Resend** | Transactional email | Add client as admin |
+| **Domain registrar** | DNS for app + API | Transfer domain |
+| **GitHub** | Source repository | Transfer repo to client org |
 
-3. **View Order Details**
-   - Click on an order row
-   - See full details:
-     - Customer information
-     - Order items and quantities
-     - Prices and fees
-     - Current status
-     - Status timeline/history
-     - Assigned driver (if any)
-     - Assigned laundromat (if any)
+> **Recommendation:** create a `1Password` / `Bitwarden` shared vault and store every credential there before handoff.
 
 ---
 
-## How to Assign Driver & Laundromat (Admin)
+## 4. Environment Variables (Production)
 
-1. **Go to Dispatch**
-   - Click "Dispatch" in the admin menu
-   - You'll see orders waiting for dispatch (status: pending_dispatch)
+A complete `.env.example` is in the repository root. Production values must be set in your hosting providers (Vercel, Railway). **Never commit real secrets.**
 
-2. **Select Order**
-   - Find the order you want to dispatch
-   - Orders show: Customer name, phone, items, and total
+### Backend (Railway / Render)
+```env
+NODE_ENV=production
+PORT=3001
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<from Supabase dashboard>
+SUPABASE_ANON_KEY=<from Supabase dashboard>
+REDIS_URL=<Upstash or Redis provider URL>
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+RESEND_API_KEY=re_...
+EXPO_ACCESS_TOKEN=<from Expo>
+JWT_SECRET=<min 32 random chars>
+```
 
-3. **Assign Driver**
-   - Click dropdown under "Select Driver"
-   - Choose a driver from the list
-   - Drivers show: Name and phone number
+### Web apps (Vercel)
+```env
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_API_URL=https://api.<your-domain>.com
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+```
 
-4. **Assign Laundromat**
-   - Click dropdown under "Select Laundromat"
-   - Choose a laundromat
-   - Laundromats show: Name and address
-
-5. **Dispatch**
-   - Click "Dispatch" button
-   - You'll see: "Order XXXXX... dispatched successfully"
-   - Order disappears from pending queue
-   - Driver and laundromat receive notifications
-
----
-
-## How to Update Order Status (Admin)
-
-**Option 1: From Order Detail Page**
-
-1. Go to Orders
-2. Click on order
-3. Scroll down to "Status" section
-4. Click dropdown
-5. Select new status
-6. Click "Update"
-7. Confirm
-
-**Note:** Some statuses can only be updated by specific roles:
-- Driver can update: heading_to_pickup, arrived_at_pickup, picked_up, out_for_delivery, delivered
-- Laundromat can update: received, sorting, washing, drying, folding, quality_check, packed, ready_for_delivery
-- Admin can update any status (but shouldn't override driver/laundromat)
+### Mobile apps (Expo EAS)
+Configured in each app's `app.json` under `extra`. Use `eas secret:create` for sensitive values.
 
 ---
 
-## How to Handle Late Orders (Admin)
+## 5. Initial Production Setup Checklist
 
-1. **Identify Late Orders**
-   - Go to "SLA" page
-   - You'll see orders with SLA status:
-     - **Safe** — On track to deliver on time (green)
-     - **At Risk** — May miss deadline (yellow)
-     - **Breached** — SLA deadline passed (red)
+Before going live, complete each step.
 
-2. **What to Do**
-   - Contact driver or laundromat if breached
-   - Consider partial refund or credit
-   - Document the issue
+### Infrastructure
+- [ ] Supabase project created (production tier)
+- [ ] All migrations applied (`npm run db:migrate`)
+- [ ] RLS policies verified on every table
+- [ ] Redis provisioned (Upstash recommended)
+- [ ] Stripe live keys configured & webhook endpoint registered
+- [ ] Resend domain verified (SPF + DKIM)
+- [ ] Custom domain DNS pointed to Vercel + Railway
 
-3. **Mark for Refund Eligibility** (future feature)
-   - Currently, you can note in order details
-   - Refund process is manual
+### Deployment
+- [ ] Backend deployed to Railway/Render (health check passing)
+- [ ] Admin dashboard deployed to Vercel
+- [ ] Staff dashboard deployed to Vercel
+- [ ] Customer app submitted to App Store + Play Store
+- [ ] Driver app submitted to App Store + Play Store
 
----
+### First user setup
+- [ ] Create initial admin user in Supabase Auth
+- [ ] Set role = `admin` in `profiles` table
+- [ ] Log in to admin dashboard to verify access
+- [ ] Configure pricing in Settings
+- [ ] Configure delivery zones
+- [ ] Onboard first driver (driver app)
+- [ ] Run end-to-end test order
 
-## How to Issue Refund Record (Admin)
-
-1. **Go to Order Detail**
-   - Click Orders
-   - Find order
-   - Click to open detail
-
-2. **Scroll to Refund Section**
-   - Find "Refund" or "Issue Refund" section
-   - Click "Create Refund"
-
-3. **Enter Refund Details**
-   - **Amount:** Enter amount to refund (e.g., 10.00 for partial, or full order total)
-   - **Reason:** Enter reason (e.g., "SLA breach", "Quality issue", "Customer request")
-
-4. **Submit**
-   - Click "Create Refund"
-   - Refund record saved
-   - You'll see success message
-
-5. **Note**
-   - Refund record is created but not yet processed with Stripe
-   - Stripe refund integration coming in future phase
-   - Currently, you must manually process refund in Stripe dashboard
+### Verification
+- [ ] Stripe test payment processes successfully
+- [ ] Push notification reaches customer device
+- [ ] Driver location updates appear on admin map
+- [ ] SLA timer visible on admin order detail page
+- [ ] Refund test order → wallet credit appears
 
 ---
 
-## How to Change Pricing (Admin)
+## 6. Operational Runbook
 
-1. **Go to Settings**
-   - Click "Settings" in admin menu
+### Daily
+- Review **Dispatch** dashboard for unassigned orders
+- Check **SLA** dashboard for orders nearing breach (< 4h remaining)
+- Review **Support** queue for open tickets
 
-2. **Services Section**
-   - See list of all services (Wash & Fold, Dry Clean, etc.)
-   - Each service shows:
-     - Name
-     - Current price
-     - Unit (lbs, garments, etc.)
-     - Active status
+### Weekly
+- Review **Finance** dashboard: revenue, refund rate, payouts
+- Review driver performance metrics
+- Reconcile Stripe payouts vs internal ledger
 
-3. **Edit Service Price**
-   - Click on service
-   - Enter new price
-   - Click "Save"
-   - Changes take effect immediately for new orders
-
-4. **Create New Service**
-   - Click "Add Service"
-   - Enter: Name, Price, Unit, Active (yes/no)
-   - Click "Create"
-   - New service available for customers
-
-5. **Deactivate Service**
-   - Click service
-   - Toggle "Active" to off
-   - Click "Save"
-   - Service no longer available to customers
+### Monthly
+- Rotate sensitive secrets (`JWT_SECRET`, Stripe webhook secret)
+- Review audit logs for unusual admin activity
+- Apply dependency security updates: `npm audit fix`
 
 ---
 
-## How to View Revenue (Admin)
+## 7. Support & Maintenance
 
-1. **Go to Finance**
-   - Click "Finance" in admin menu
+### Production incidents
+| Severity | Definition | Response |
+|---|---|---|
+| **P0** | Service down, payments failing | Immediate page on-call |
+| **P1** | SLA engine not refunding, push broken | < 1 hour |
+| **P2** | Admin UI bug, driver app glitch | Next business day |
+| **P3** | Cosmetic, documentation | Backlog |
 
-2. **View Metrics**
-   - **Today Revenue** — Total paid amount today
-   - **Orders Today** — Number of orders today
-   - **Average Order Value** — Average paid order amount
-   - **Paid Orders** — Count of paid orders all-time
-   - **Refunded Orders** — Count of refunded orders
+### Useful logs
+- **Backend logs:** Railway dashboard → Deployments → Logs
+- **Database logs:** Supabase dashboard → Logs Explorer
+- **Stripe events:** Stripe dashboard → Developers → Events
+- **Push delivery:** Expo dashboard → Push Notifications → Receipts
+- **Audit trail:** Admin dashboard → Settings → Audit Log
 
-3. **View Order Details**
-   - Scroll down to "Latest Orders" table
-   - See recent orders with:
-     - Order ID
-     - Amount
-     - Payment status
-     - Order status
-     - Created date
-   - Click order ID to view full details
+### Common issues
+See `TROUBLESHOOTING.md` for fixes to recurring problems.
 
 ---
 
-## What NOT to Touch
+## 8. Backup & Disaster Recovery
 
-⛔ **Do NOT manually modify these in the database:**
+| Component | Backup mechanism | RPO |
+|---|---|---|
+| Supabase database | Automated daily backups (7-day retention on free tier; 30-day on Pro) | 24h |
+| File storage | Supabase Storage versioning | 24h |
+| Source code | GitHub (always) | 0 |
+| Stripe data | Stripe retains indefinitely | 0 |
 
-- `auth.users` — Authentication managed by Supabase only
-- `order_status_events` — Auto-generated, do not edit
-- `driver_locations` — Auto-generated from driver app
-- `profiles` role field — Set during signup, should not be changed
-- `wallets` balance — Calculated automatically
-
-⛔ **Do NOT delete these even if empty:**
-
-- Any system tables (they're needed even with zero data)
-- Service records if customers depend on them (deactivate instead)
-- Support tickets (mark as resolved instead of deleting)
-
-⛔ **Do NOT change these without testing:**
-
-- Fee percentages in code
-- Status enum values
-- RLS policies
-- Supabase Edge Functions
+**Recovery procedure:** see `DEPLOYMENT.md` § Disaster Recovery.
 
 ---
 
-## Common Workflows
+## 9. Cost Estimate (USD / month)
 
-### Complete Order (End-to-End)
+Rough order-of-magnitude for a small launch (≤ 1,000 orders/month):
 
-1. Customer signs up and adds address
-2. Customer creates and pays for order → status: pending_dispatch
-3. Admin assigns driver and laundromat → status: accepted
-4. Driver updates status through pickup flow
-5. Laundromat updates status through cleaning flow
-6. Driver marks delivered
-7. Order complete and customer sees delivered
+| Service | Tier | Cost |
+|---|---|---|
+| Supabase Pro | required for backups | $25 |
+| Railway / Render | backend hosting | $20 |
+| Vercel | 2 web apps | $0–$20 |
+| Upstash Redis | pay-as-you-go | $5–$15 |
+| Resend | up to 3k emails/mo free | $0–$20 |
+| Expo EAS | optional, for builds | $0–$29 |
+| Apple Developer | annual | $99/yr |
+| Google Play | one-time | $25 |
+| Domain | annual | $12/yr |
+| Stripe | 2.9% + $0.30 per transaction | variable |
+| **Estimated total** | **per month** | **~$70–$130 + Stripe fees** |
 
-### Issue a Partial Refund
-
-1. Go to order detail
-2. Confirm payment was successful
-3. Click "Create Refund"
-4. Enter amount and reason
-5. Save
-6. Manually process in Stripe (if needed)
-
-### Add New Service
-
-1. Go to Settings
-2. Click "Add Service"
-3. Enter price and unit
-4. Save
-5. Available to customers immediately
+Costs scale roughly linearly with order volume.
 
 ---
 
-## Support & Contact
+## 10. Acceptance Criteria
 
-If you encounter issues:
+The platform is considered fully delivered when **all** of the following are true:
 
-1. Check **TROUBLESHOOTING.md** for common problems
-2. Check app logs and browser console for errors
-3. Check Supabase dashboard for database issues
-4. Contact development team with:
-   - Exact error message
-   - Screenshot
-   - Steps to reproduce
-   - Which app/feature affected
+- [x] Build is error-free (`npm run build` succeeds in all apps)
+- [x] All TypeScript errors resolved (`npx tsc --noEmit` exits 0 in every project)
+- [ ] All accounts in §3 transferred to client ownership
+- [ ] All checklist items in §5 completed
+- [ ] Client team trained on `CLIENT_HOW_TO_GUIDE.md`
+- [ ] At least one successful real-money order processed end-to-end
+- [ ] At least one successful SLA-triggered refund verified
 
 ---
 
-## Next Steps
+## 11. Contacts
 
-- Review **ADMIN_OPERATIONS_GUIDE.md** for detailed workflows
-- Read **TROUBLESHOOTING.md** for common issues and fixes
-- See **DEPLOYMENT_NOTES.md** for production environment setup
+| Role | Name / Email |
+|---|---|
+| Project owner (delivery team) | _to be filled_ |
+| Technical lead | _to be filled_ |
+| Support email | _to be filled_ |
+| Emergency contact | _to be filled_ |
+
+---
+
+## 12. Final Notes
+
+- The codebase follows TypeScript strict-friendly settings with deliberate relaxations for shared `.js` files in the `packages/shared` package.
+- Every admin mutation is logged to `audit_logs`. **Do not bypass this** — it is part of the chain of custody.
+- The SLA engine **must never be disabled** without an explicit business sign-off, as it underpins the brand promise.
+- Mobile apps are configured to point at production API URLs via Expo `extra` config; rebuild the app if the API URL changes.
+
+**You now own this platform. Treat the credentials in §3 as the keys to your business.**
