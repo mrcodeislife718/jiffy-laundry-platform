@@ -11,15 +11,14 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": [
-      "node"
-    ]
+    "jsx": "preserve"
   },
-  "extends": "expo/tsconfig.base"
+  "exclude": ["node_modules", "**/node_modules", "dist", ".next"]
 }

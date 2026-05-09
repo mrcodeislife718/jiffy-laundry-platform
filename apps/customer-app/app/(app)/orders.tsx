@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { supabase } from '@jiffylaundry/shared';
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   'pending': '#9CA3AF',
   'accepted': '#3B82F6',
   'processing': '#F59E0B',
@@ -14,7 +14,7 @@ const statusColors = {
   'cancelled': '#EF4444',
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   'pending': 'Pending',
   'accepted': 'Accepted',
   'processing': 'Processing',
@@ -27,7 +27,7 @@ export default function OrdersScreen() {
   const [activeTab, setActiveTab] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  const statusMap = {
+  const statusMap: Record<string, string[]> = {
     'all': [],
     'active': ['pending', 'accepted', 'processing', 'on-delivery'],
     'completed': ['delivered'],

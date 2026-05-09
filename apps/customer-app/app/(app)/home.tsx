@@ -1,5 +1,12 @@
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, useColorScheme } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
+import { Link } from 'expo-router';
+import { supabase } from '@jiffylaundry/shared';
+
 export default function HomeScreen() {
-  const { colorScheme } = useColorScheme();
+  const colorScheme = useColorScheme();
 
   // Fetch active orders
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
