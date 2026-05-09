@@ -1,0 +1,50 @@
+<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark Navy Background -->
+  <rect width="500" height="500" fill="#0a1f2e"/>
+  
+  <!-- Flying Bird -->
+  <g transform="translate(150, 100)">
+    <!-- Bird body (Navy) -->
+    <ellipse cx="80" cy="80" rx="35" ry="40" fill="#1a3a4d"/>
+    
+    <!-- Bird head -->
+    <circle cx="115" cy="65" r="28" fill="#1a3a4d"/>
+    
+    <!-- Beak (Orange) -->
+    <path d="M 140 68 L 185 62 L 140 75 Z" fill="#ff6b35" stroke="#ff6b35" stroke-width="1"/>
+    
+    <!-- Eye -->
+    <circle cx="130" cy="62" r="4" fill="white"/>
+    <circle cx="131" cy="61" r="2" fill="#0a1f2e"/>
+    
+    <!-- Upper left wing (white with blue shading) -->
+    <path d="M 70 55 Q 30 25 5 10 Q 40 45 65 70" fill="#ffffff" stroke="#1a3a4d" stroke-width="2"/>
+    
+    <!-- Upper left wing shading lines -->
+    <path d="M 50 35 Q 35 25 20 18" stroke="#1a3a4d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M 60 45 Q 45 35 30 28" stroke="#1a3a4d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    
+    <!-- Lower left wing (orange accent) -->
+    <path d="M 75 90 Q 35 110 10 135" stroke="#ff6b35" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 70 105 Q 30 130 5 165" stroke="#ff6b35" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+    
+    <!-- Right wing (light blue-white) -->
+    <path d="M 95 50 Q 135 20 175 5 Q 130 50 100 85" fill="#e8f4f8" stroke="#1a3a4d" stroke-width="2"/>
+    
+    <!-- Right wing feathers/shading -->
+    <path d="M 155 25 Q 162 45 155 65" stroke="#1a3a4d" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M 135 18 Q 140 40 135 62" stroke="#1a3a4d" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M 115 15 Q 118 38 115 60" stroke="#1a3a4d" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    
+    <!-- Speed lines (orange) -->
+    <line x1="175" y1="55" x2="210" y2="45" stroke="#ff6b35" stroke-width="4" stroke-linecap="round"/>
+    <line x1="180" y1="75" x2="220" y2="75" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/>
+    <line x1="175" y1="95" x2="210" y2="110" stroke="#ff6b35" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  </g>
+  
+  <!-- Text: "jiffy" in orange -->
+  <text x="120" y="320" font-family="Arial, sans-serif" font-size="90" font-weight="bold" fill="#ff6b35" letter-spacing="-2">jiffy</text>
+  
+  <!-- Text: "Laundry" in white -->
+  <text x="120" y="400" font-family="Arial, sans-serif" font-size="80" font-weight="300" fill="#ffffff" letter-spacing="1">Laundry</text>
+</svg>

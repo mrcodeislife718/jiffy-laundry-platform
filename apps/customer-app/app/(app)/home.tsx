@@ -1,146 +1,161 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { authAPI, profileAPI } from '@jiffylaundry/shared';
-
 export default function HomeScreen() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState('');
+  const { colorScheme } = useColorScheme();
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const { data } = await authAPI.getSession();
-        if (data.session?.user) {
-          const { data: profile } = await profileAPI.getProfile(data.session.user.id);
-          setUserName(profile?.full_name || 'Customer');
-        }
-      } catch (err) {
-        router.replace('/(auth)/login');
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Fetch active orders
+  const { data: ordersData, isLoading: ordersLoading } = useQuery({
+    queryKey: ['orders', 'active'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('customer_id', user.id)
+        .in('status', ['pending', 'processing', 'on-delivery'])
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+  });
 
-    loadUser();
-  }, []);
+  // Fetch user profile
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      return data;
+    },
+  });
 
-  if (loading) {
+  // Fetch wallet
+  const { data: wallet, isLoading: walletLoading } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('customer_id', user.id)
+        .single();
+      return data;
+    },
+  });
+
+  const isLoading = profileLoading || ordersLoading || walletLoading;
+  const activeOrder = ordersData?.[0];
+
+  if (isLoading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
+      <SafeAreaView className="flex-1 bg-white dark:bg-slate-900 justify-center items-center">
+        <ActivityIndicator size="large" color="#FF5A00" />
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.welcome}>Welcome, {userName}!</Text>
+    <SafeAreaView className="flex-1 bg-white dark:bg-slate-900">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="px-6 py-4 bg-[#FF5A00]">
+          <Text className="text-white text-3xl font-bold">JiffyLaundry</Text>
+          <Text className="text-orange-100 text-sm">👋 Hi {profile?.full_name?.split(' ')[0] || 'there'}</Text>
+        </View>
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => router.push('/create-order')}
-        >
-          <Text style={styles.actionTitle}>📝</Text>
-          <Text style={styles.actionLabel}>New Order</Text>
-        </TouchableOpacity>
+        {/* Main Content */}
+        <View className="px-6 py-6 space-y-6">
+          {/* Wallet Card */}
+          <View className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
+            <View className="flex-row justify-between items-start mb-3">
+              <Text className="text-gray-700 dark:text-slate-300 font-semibold">Wallet Balance</Text>
+              <Ionicons name="wallet" size={24} color="#FF5A00" />
+            </View>
+            <Text className="text-4xl font-bold text-[#FF5A00] mb-3">
+              ${wallet?.balance?.toFixed(2) || '0.00'}
+            </Text>
+            <Link href="/wallet" asChild>
+              <TouchableOpacity className="bg-[#FF5A00] rounded-lg py-2 px-3">
+                <Text className="text-white text-sm font-semibold text-center">Add Funds</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => router.push('/(app)/pricing')}
-        >
-          <Text style={styles.actionTitle}>💰</Text>
-          <Text style={styles.actionLabel}>Services</Text>
-        </TouchableOpacity>
+          {/* Active Order */}
+          {activeOrder ? (
+            <Link href={`/tracking?orderId=${activeOrder.id}`} asChild>
+              <TouchableOpacity className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4">
+                <View className="flex-row justify-between items-start mb-2">
+                  <Text className="text-green-900 dark:text-green-300 font-semibold">Order in Progress</Text>
+                  <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+                </View>
+                <Text className="text-green-800 dark:text-green-200 text-sm mb-3">
+                  {activeOrder.special_instructions || 'Standard laundry service'} • Est. {new Date(activeOrder.created_at).toLocaleDateString()}
+                </Text>
+                <Text className="text-green-600 dark:text-green-300 text-sm font-semibold">Track Order →</Text>
+              </TouchableOpacity>
+            </Link>
+          ) : (
+            <View className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4">
+              <Text className="text-gray-700 dark:text-slate-300 font-semibold mb-3">No Active Orders</Text>
+              <Link href="/create-order" asChild>
+                <TouchableOpacity className="bg-[#FF5A00] rounded-lg py-3">
+                  <Text className="text-white text-sm font-semibold text-center">Create New Order</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          )}
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => router.push('/(app)/orders')}
-        >
-          <Text style={styles.actionTitle}>📦</Text>
-          <Text style={styles.actionLabel}>My Orders</Text>
-        </TouchableOpacity>
+          {/* Quick Services */}
+          <View>
+            <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">Services</Text>
+            <View className="gap-2">
+              <Link href="/create-order" asChild>
+                <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <Ionicons name="shirt" size={28} color="#FF5A00" />
+                  <View className="ml-4 flex-1">
+                    <Text className="font-semibold text-gray-900 dark:text-white">New Order</Text>
+                    <Text className="text-xs text-gray-600 dark:text-slate-400">Schedule pickup & delivery</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              </Link>
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => router.push('/(app)/profile')}
-        >
-          <Text style={styles.actionTitle}>👤</Text>
-          <Text style={styles.actionLabel}>Profile</Text>
-        </TouchableOpacity>
+              <Link href="/orders" asChild>
+                <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <Ionicons name="list" size={28} color="#3B82F6" />
+                  <View className="ml-4 flex-1">
+                    <Text className="font-semibold text-gray-900 dark:text-white">My Orders</Text>
+                    <Text className="text-xs text-gray-600 dark:text-slate-400">View all your orders</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              </Link>
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => router.push('/addresses')}
-        >
-          <Text style={styles.actionTitle}>📍</Text>
-          <Text style={styles.actionLabel}>Addresses</Text>
-        </TouchableOpacity>
-      </View>
+              <Link href="/support" asChild>
+                <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <Ionicons name="help-circle" size={28} color="#06B6D4" />
+                  <View className="ml-4 flex-1">
+                    <Text className="font-semibold text-gray-900 dark:text-white">Support</Text>
+                    <Text className="text-xs text-gray-600 dark:text-slate-400">Contact us for help</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </View>
 
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={async () => {
-          await authAPI.signOut();
-          router.replace('/(auth)/login');
-        }}
-      >
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
-    </ScrollView>
+          {/* Promo Banner */}
+          <View className="bg-gradient-to-r from-[#FF5A00] to-orange-600 p-4 rounded-lg">
+            <Text className="text-white font-bold text-lg">Special Offer</Text>
+            <Text className="text-orange-100 text-sm mt-1">Get 20% off your next order with code SAVE20</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  center: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  welcome: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 30,
-    marginTop: 50,
-    marginHorizontal: 20,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 30,
-    paddingHorizontal: 20,
-  },
-  actionCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    width: '45%',
-  },
-  actionTitle: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
-    marginHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});

@@ -9,6 +9,8 @@
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -20,7 +22,10 @@
     "paths": {
       "@jiffylaundry/shared": [
         "../../packages/shared"
-      ]
+      ],
+      "@/components": ["./components"],
+      "@/lib": ["./lib"],
+      "@/*": ["./*"]
     },
     "isolatedModules": true,
     "plugins": [

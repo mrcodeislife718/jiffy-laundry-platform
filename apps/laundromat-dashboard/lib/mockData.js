@@ -1,0 +1,48 @@
+// Mock data for laundromat dashboard
+export const mockOrders = [
+  {
+    id: 'ORD-001',
+    customer: 'John Doe',
+    items: 3,
+    total: 45.99,
+    status: 'delivered',
+    paymentStatus: 'paid',
+    createdAt: new Date('2026-05-08'),
+  },
+  {
+    id: 'ORD-002',
+    customer: 'Jane Smith',
+    items: 5,
+    total: 78.50,
+    status: 'out_for_delivery',
+    paymentStatus: 'paid',
+    createdAt: new Date('2026-05-07'),
+  },
+  {
+    id: 'ORD-003',
+    customer: 'Bob Johnson',
+    items: 2,
+    total: 32.00,
+    status: 'washing',
+    paymentStatus: 'paid',
+    createdAt: new Date('2026-05-07'),
+  },
+  {
+    id: 'ORD-004',
+    customer: 'Alice Williams',
+    items: 4,
+    total: 95.75,
+    status: 'folding',
+    paymentStatus: 'paid',
+    createdAt: new Date('2026-05-06'),
+  },
+  {
+    id: 'ORD-005',
+    customer: 'Mike Brown',
+    items: 1,
+    total: 15.00,
+    status: 'sorting',
+    paymentStatus: 'unpaid',
+    createdAt: new Date('2026-05-06'),
+  },
+];

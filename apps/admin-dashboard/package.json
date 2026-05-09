@@ -9,19 +9,25 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@jiffylaundry/realtime": "file:../../packages/realtime",
     "@jiffylaundry/shared": "file:../../packages/shared",
+    "@stripe/stripe-react-native": "^0.36.0",
     "@supabase/supabase-js": "^2.38.4",
     "@tanstack/react-query": "^5.25.0",
-    "@stripe/stripe-react-native": "^0.36.0",
-    "zustand": "^4.4.1",
     "lucide-react": "^0.263.1",
     "next": "^14.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.0",
+    "socket.io-client": "^4.7.2",
+    "zustand": "^4.4.1"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
+    "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
-    "@types/node": "^20.0.0"
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
   }
 }

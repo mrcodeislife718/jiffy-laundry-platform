@@ -1,425 +1,253 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
-import { getCurrentUser } from '../../../packages/shared/auth';
-import { getDriverActiveOrder, updateOrderDetails } from '../../../packages/shared/orders';
-import { insertDriverLocation } from '../../../packages/shared/location';
+import { supabase } from '@jiffylaundry/shared';
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#999',
-  },
-  card: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#999',
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  cardContent: {
-    fontSize: 15,
-    color: '#333',
-    lineHeight: 22,
-  },
-  label: {
-    fontWeight: '600',
-    color: '#666',
-    marginRight: 4,
-  },
-  statusBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  statusBadgeText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  controlsContainer: {
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  controlsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#999',
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  buttonGrid: {
-    gap: 8,
-  },
-  statusButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#007aff',
-  },
-  statusButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  statusButtonDisabled: {
-    backgroundColor: '#999',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff3b30',
-    textAlign: 'center',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: 12,
-  },
-});
-
-const STATUS_BUTTONS = [
-  { status: 'heading_to_pickup', label: 'Heading to Pickup' },
-  { status: 'arrived_at_pickup', label: 'Arrived at Pickup' },
-  { status: 'picked_up', label: 'Picked Up' },
-  { status: 'received', label: 'Received' },
-  { status: 'out_for_delivery', label: 'Out for Delivery' },
-  { status: 'delivered', label: 'Delivered' },
-];
-
-const getStatusColor = (status) => {
-  const colors = {
-    pending_dispatch: '#FF9500',
-    accepted: '#007AFF',
-    heading_to_pickup: '#007AFF',
-    arrived_at_pickup: '#007AFF',
-    picked_up: '#34C759',
-    received: '#34C759',
-    sorting: '#34C759',
-    washing: '#34C759',
-    drying: '#34C759',
-    folding: '#34C759',
-    quality_check: '#34C759',
-    packed: '#34C759',
-    ready_for_delivery: '#34C759',
-    out_for_delivery: '#34C759',
-    delivered: '#34C759',
-    cancelled: '#FF3B30',
-    refunded: '#FF3B30',
-  };
-  return colors[status] || '#999';
-};
 
 export default function ActiveOrderScreen() {
   const router = useRouter();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [error, setError] = useState('');
-  const [locationError, setLocationError] = useState('');
-  const [user, setUser] = useState(null);
-  const [locationTracking, setLocationTracking] = useState(false);
+  const { orderId } = useLocalSearchParams();
 
-  useEffect(() => {
-    const loadOrder = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        if (!currentUser) {
-          setError('Not authenticated');
-          setLoading(false);
-          return;
-        }
+  const { data: order, isLoading } = useQuery({
+    queryKey: ['active-order', orderId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      return data;
+    },
+    enabled: !!orderId,
+    refetchInterval: 5000,
+  });
 
-        setUser(currentUser);
-
-        const activeOrder = await getDriverActiveOrder(currentUser.id);
-        if (!activeOrder) {
-          setError('No active orders');
-          setLoading(false);
-          return;
-        }
-
-        setOrder(activeOrder);
-        setError('');
-      } catch (err) {
-        setError('Failed to load order: ' + (err.message || 'Unknown error'));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrder();
-  }, []);
-
-  // Location tracking
-  useEffect(() => {
-    let locationSubscription = null;
-
-    const startLocationTracking = async () => {
-      try {
-        // Request foreground location permission
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          console.log('Location permission denied');
-          setLocationTracking(false);
-          return;
-        }
-
-        // Start watching location
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 5000, // Update every 5 seconds
-            distanceInterval: 10, // Or when moved 10 meters
-          },
-          async (location) => {
-            try {
-              if (order && user && order.status !== 'delivered' && order.status !== 'cancelled') {
-                await insertDriverLocation({
-                  driverId: user.id,
-                  orderId: order.id,
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                });
-                setLocationError(''); // Clear error on success
-              }
-            } catch (err) {
-              const errorMsg = 'Location update failed: ' + (err.message || 'Unknown error');
-              setLocationError(errorMsg);
-              Alert.alert('Location Tracking Error', errorMsg);
-            }
-          }
-        );
-
-        setLocationTracking(true);
-      } catch (err) {
-        console.log('Location tracking error:', err.message);
-        setLocationTracking(false);
-      }
-    };
-
-    if (order && user && order.status !== 'delivered' && order.status !== 'cancelled') {
-      startLocationTracking();
-    }
-
-    // Cleanup on unmount or when order changes
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, [order, user]);
-
-  const handleStatusUpdate = async (newStatus) => {
-    setUpdating(true);
-    try {
-      const updated = await updateOrderDetails({
-        orderId: order.id,
-        status: newStatus,
-      });
-      setOrder(updated);
-      Alert.alert('Success', `Order status updated to ${newStatus.replace(/_/g, ' ')}`);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to update status: ' + (err.message || 'Unknown error'));
-    } finally {
-      setUpdating(false);
-    }
+  const handlePickupComplete = async () => {
+    Alert.alert('Confirm Pickup', 'Mark this order as picked up?', [
+      { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: async () => {
+          await supabase
+            .from('orders')
+            .update({ status: 'on-delivery' })
+            .eq('id', orderId);
+          Alert.alert('Success', 'Order marked as picked up. Head to delivery location.');
+        },
+      },
+    ]);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+  const handleDeliveryComplete = async () => {
+    Alert.alert('Confirm Delivery', 'Mark this order as delivered?', [
+      { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: async () => {
+          await supabase
+            .from('orders')
+            .update({ 
+              status: 'delivered',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', orderId);
+          Alert.alert('Success', 'Order delivered! Earnings updated.');
+          router.back();
+        },
+      },
+    ]);
+  };
 
-  if (error) {
+  if (isLoading) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
+      <SafeAreaView className="flex-1 bg-white dark:bg-slate-900 justify-center items-center">
+        <ActivityIndicator size="large" color="#FF5A00" />
+      </SafeAreaView>
     );
   }
 
   if (!order) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No active orders</Text>
-      </View>
+      <SafeAreaView className="flex-1 bg-white dark:bg-slate-900 justify-center items-center">
+        <Text className="text-gray-900 dark:text-white text-lg">Order not found</Text>
+      </SafeAreaView>
     );
   }
 
+  const isPickedUp = order.status === 'on-delivery' || order.status === 'delivered';
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Active Order</Text>
-          <Text style={styles.subtitle}>Order {order.id.slice(0, 8)}...</Text>
+    <SafeAreaView className="flex-1 bg-white dark:bg-slate-900">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="px-6 py-4 bg-[#FF5A00]">
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Text className="text-white text-2xl font-bold mt-2">Active Delivery</Text>
         </View>
 
-        {/* Current Status */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Current Status</Text>
-          <View style={styles.statusRow}>
-            <Text style={styles.cardContent}>
-              {order.status.replace(/_/g, ' ').toUpperCase()}
+        <View className="px-6 py-6 space-y-6">
+          {/* Order Summary */}
+          <View className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4">
+            <View className="flex-row justify-between items-start mb-3">
+              <View>
+                <Text className="text-gray-600 dark:text-slate-400 text-xs">Order ID</Text>
+                <Text className="text-gray-900 dark:text-white font-bold text-lg">
+                  {order.id.slice(0, 8).toUpperCase()}
+                </Text>
+              </View>
+              <View className="bg-blue-100 dark:bg-blue-900/40 px-3 py-1 rounded-full">
+                <Text className="text-blue-700 dark:text-blue-300 text-xs font-semibold">
+                  {order.status.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+            <Text className="text-gray-700 dark:text-slate-300 text-sm mb-3">
+              {order.special_instructions || 'Standard laundry service'}
             </Text>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: getStatusColor(order.status) },
-              ]}
-            >
-              <Text style={styles.statusBadgeText}>Active</Text>
+            <View className="flex-row justify-between items-end pt-3 border-t border-gray-200 dark:border-slate-700">
+              <Text className="text-gray-600 dark:text-slate-400 text-sm">Delivery Fee</Text>
+              <Text className="text-[#FF5A00] font-bold text-2xl">
+                ${order.total?.toFixed(2) || '0.00'}
+              </Text>
             </View>
           </View>
-        </View>
 
-        {/* Customer Info */}
-        {order.customer && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Customer</Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Name:</Text> {order.customer.full_name}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Phone:</Text> {order.customer.phone}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Email:</Text> {order.customer.email}
-            </Text>
-          </View>
-        )}
-
-        {/* Pickup Address */}
-        {order.addresses && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pickup Address</Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Street:</Text> {order.addresses.street}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>City:</Text> {order.addresses.city}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>State:</Text> {order.addresses.state}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Zip:</Text> {order.addresses.zip_code}
-            </Text>
-          </View>
-        )}
-
-        {/* Laundromat Info */}
-        {order.laundromats && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Laundromat</Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Name:</Text> {order.laundromats.name}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>Address:</Text> {order.laundromats.address}
-            </Text>
-            <Text style={styles.cardContent}>
-              <Text style={styles.label}>City:</Text> {order.laundromats.city}
-            </Text>
-          </View>
-        )}
-
-        {/* Order Items */}
-        {order.order_items && order.order_items.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Items</Text>
-            {order.order_items.map((item, index) => (
-              <View key={item.id}>
-                <Text style={styles.cardContent}>
-                  {item.service_name} × {item.quantity} {item.unit}
-                </Text>
-                {index < order.order_items.length - 1 && (
-                  <View style={styles.divider} />
-                )}
+          {/* Status Progress */}
+          <View>
+            <Text className="text-lg font-bold text-gray-900 dark:text-white mb-4">Delivery Progress</Text>
+            
+            <View className="space-y-4">
+              {/* Pickup */}
+              <View className="flex-row items-start">
+                <View className={`w-12 h-12 rounded-full items-center justify-center border-2 ${
+                  isPickedUp
+                    ? 'bg-[#FF5A00] border-[#FF5A00]'
+                    : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600'
+                }`}>
+                  <Ionicons 
+                    name={isPickedUp ? 'checkmark' : 'bag'} 
+                    size={24} 
+                    color={isPickedUp ? 'white' : '#9CA3AF'}
+                  />
+                </View>
+                <View className="ml-4 flex-1">
+                  <Text className={`font-bold ${isPickedUp ? 'text-[#FF5A00]' : 'text-gray-900 dark:text-white'}`}>
+                    Pickup from Laundromat
+                  </Text>
+                  <Text className="text-gray-600 dark:text-slate-400 text-sm">
+                    Collect the order items
+                  </Text>
+                </View>
               </View>
-            ))}
-          </View>
-        )}
 
-        {/* Status Update Controls */}
-        <View style={styles.controlsContainer}>
-          <Text style={styles.controlsTitle}>Update Status</Text>
-          <View style={styles.buttonGrid}>
-            {STATUS_BUTTONS.map((button) => (
+              {/* Divider */}
+              {isPickedUp && <View className="h-6 ml-6 w-1 bg-[#FF5A00]" />}
+
+              {/* Delivery */}
+              <View className="flex-row items-start">
+                <View className={`w-12 h-12 rounded-full items-center justify-center border-2 ${
+                  order.status === 'delivered'
+                    ? 'bg-green-500 border-green-500'
+                    : isPickedUp
+                    ? 'bg-blue-500 border-blue-500'
+                    : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600'
+                }`}>
+                  <Ionicons 
+                    name={order.status === 'delivered' ? 'checkmark-done' : isPickedUp ? 'car' : 'location'} 
+                    size={24} 
+                    color={isPickedUp ? 'white' : '#9CA3AF'}
+                  />
+                </View>
+                <View className="ml-4 flex-1">
+                  <Text className={`font-bold ${isPickedUp ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
+                    Deliver to Customer
+                  </Text>
+                  <Text className="text-gray-600 dark:text-slate-400 text-sm">
+                    {isPickedUp ? 'On the way to delivery address' : 'Awaiting pickup'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Customer Info */}
+          <View className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4">
+            <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">Customer Info</Text>
+            
+            <View className="space-y-2">
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 dark:text-slate-400">Customer</Text>
+                <Text className="font-semibold text-gray-900 dark:text-white">John Doe</Text>
+              </View>
+              
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 dark:text-slate-400">Phone</Text>
+                <TouchableOpacity>
+                  <Text className="text-[#FF5A00] font-semibold">+1 (555) 123-4567</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 dark:text-slate-400">Address</Text>
+                <Text className="font-semibold text-gray-900 dark:text-white text-right max-w-[60%]">
+                  123 Main St, Apt 4B
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity className="mt-4 border border-[#FF5A00] rounded-lg py-2 px-3 flex-row items-center justify-center">
+              <Ionicons name="call" size={16} color="#FF5A00" />
+              <Text className="text-[#FF5A00] font-semibold ml-2">Call Customer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Special Instructions */}
+          {order.special_instructions && (
+            <View className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+              <View className="flex-row items-start">
+                <Ionicons name="alert-circle" size={20} color="#F59E0B" />
+                <View className="ml-3 flex-1">
+                  <Text className="text-yellow-900 dark:text-yellow-300 font-semibold text-sm">
+                    Special Instructions
+                  </Text>
+                  <Text className="text-yellow-800 dark:text-yellow-200 text-sm mt-1">
+                    {order.special_instructions}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          <View className="space-y-3">
+            {!isPickedUp && (
               <TouchableOpacity
-                key={button.status}
-                style={[styles.statusButton, updating && styles.statusButtonDisabled]}
-                onPress={() => handleStatusUpdate(button.status)}
-                disabled={updating}
+                onPress={handlePickupComplete}
+                className="bg-[#FF5A00] rounded-lg py-3"
               >
-                <Text style={styles.statusButtonText}>{button.label}</Text>
+                <Text className="text-white font-bold text-center">Picked Up - Ready to Deliver</Text>
               </TouchableOpacity>
-            ))}
+            )}
+
+            {isPickedUp && order.status !== 'delivered' && (
+              <TouchableOpacity
+                onPress={handleDeliveryComplete}
+                className="bg-green-500 rounded-lg py-3"
+              >
+                <Text className="text-white font-bold text-center">Delivered - Complete Order</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity className="border-2 border-red-500 rounded-lg py-3">
+              <Text className="text-red-500 font-bold text-center">Report Issue</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

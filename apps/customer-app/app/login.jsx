@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmail } from '../../../packages/shared/auth';
+import { supabase } from '@jiffylaundry/shared';
+
+const ORANGE = '#ff6b35';
+const DARK_TEXT = '#111827';
+const LIGHT_GRAY = '#6b7280';
+const BG = '#f9fafb';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -19,10 +24,12 @@ export default function LoginScreen() {
     setLoading(true);
     setError('');
     try {
-      const result = await signInWithEmail({ email, password });
-      if (result) {
-        router.replace('/(app)/home');
-      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) throw signInError;
+      router.replace('/(app)/home');
     } catch (err) {
       setError(err.message || 'Login failed');
       Alert.alert('Login Error', err.message || 'Login failed');
@@ -32,8 +39,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>JiffyLaundry</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
       <Text style={styles.subtitle}>Sign In</Text>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -67,67 +78,80 @@ export default function LoginScreen() {
         <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/signup')}>
+      <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
         <Text style={styles.link}>Don't have an account? Sign Up</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    backgroundColor: BG,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-    color: '#333',
+  scrollContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+    minHeight: '100%',
+  },
+  logo: {
+    width: 200,
+    height: 120,
+    marginBottom: 40,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 30,
+    fontSize: 24,
+    fontWeight: '600',
+    color: DARK_TEXT,
+    marginBottom: 32,
     textAlign: 'center',
   },
   errorText: {
-    color: '#ff0000',
-    marginBottom: 15,
+    color: '#dc2626',
+    marginBottom: 16,
     textAlign: 'center',
     fontSize: 14,
+    fontWeight: '500',
+    width: '100%',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
-    marginBottom: 15,
+    borderColor: '#e5e7eb',
+    padding: 14,
+    marginBottom: 16,
     borderRadius: 8,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: 'white',
+    color: DARK_TEXT,
+    width: '100%',
+    maxWidth: 300,
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 14,
+    backgroundColor: ORANGE,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
+    width: '100%',
+    maxWidth: 300,
   },
   buttonDisabled: {
-    backgroundColor: '#999',
+    backgroundColor: LIGHT_GRAY,
   },
   buttonText: {
-    color: '#fff',
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   link: {
-    color: '#007AFF',
+    color: ORANGE,
     textAlign: 'center',
     marginTop: 20,
     fontSize: 14,
+    fontWeight: '500',
   },
 });

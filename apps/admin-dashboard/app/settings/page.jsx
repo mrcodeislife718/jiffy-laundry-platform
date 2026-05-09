@@ -1,330 +1,185 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@jiffylaundry/shared/supabase';
-import styles from './settings.module.css';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function SettingsPage() {
-  const queryClient = useQueryClient();
-  const [newServiceName, setNewServiceName] = useState('');
-  const [newServicePrice, setNewServicePrice] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editingPrice, setEditingPrice] = useState('');
-
-  // Fetch all services (including inactive)
-  const { data: services = [], isLoading, error } = useQuery({
-    queryKey: ['all-services'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .order('name', { ascending: true });
-      if (error) throw error;
-      return data;
+  const { colors, isDark } = useTheme();
+  const [settings, setSettings] = useState({
+    businessName: 'Jiffy Laundry',
+    email: 'admin@jiffylaundry.com',
+    phone: '(555) 123-4567',
+    address: '123 Main St, City, State 12345',
+    operatingHours: '6:00 AM - 10:00 PM',
+    defaultPickupFee: 2.0,
+    currency: 'USD',
+    notifications: {
+      emailAlerts: true,
+      smsAlerts: true,
+      orderUpdates: true,
     },
   });
 
-  // Create service mutation
-  const createServiceMutation = useMutation({
-    mutationFn: async ({ name, price }) => {
-      const { data, error } = await supabase
-        .from('services')
-        .insert([
-          {
-            name,
-            price: parseFloat(price),
-            active: true,
-          },
-        ])
-        .select();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-services'] });
-      setNewServiceName('');
-      setNewServicePrice('');
-      alert('Service created successfully');
-    },
-    onError: (error) => {
-      alert('Error creating service: ' + (error.message || 'Unknown error'));
-    },
-  });
+  const [saved, setSaved] = useState(false);
 
-  // Update price mutation
-  const updatePriceMutation = useMutation({
-    mutationFn: async ({ serviceId, price }) => {
-      const { data, error } = await supabase
-        .from('services')
-        .update({ price: parseFloat(price) })
-        .eq('id', serviceId)
-        .select();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-services'] });
-      setEditingId(null);
-      setEditingPrice('');
-      alert('Price updated successfully');
-    },
-    onError: (error) => {
-      alert('Error updating price: ' + (error.message || 'Unknown error'));
-    },
-  });
-
-  // Toggle active status mutation
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ serviceId, currentActive }) => {
-      const { data, error } = await supabase
-        .from('services')
-        .update({ active: !currentActive })
-        .eq('id', serviceId)
-        .select();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-services'] });
-      alert('Service status updated');
-    },
-    onError: (error) => {
-      alert('Error updating service status: ' + (error.message || 'Unknown error'));
-    },
-  });
-
-  const handleCreateService = () => {
-    if (!newServiceName || !newServicePrice) {
-      alert('Please enter both service name and price');
-      return;
-    }
-    createServiceMutation.mutate({
-      name: newServiceName,
-      price: newServicePrice,
-    });
+  const handleInputChange = (field, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
-  const handleUpdatePrice = (serviceId) => {
-    if (!editingPrice) {
-      alert('Please enter a price');
-      return;
-    }
-    updatePriceMutation.mutate({
-      serviceId,
-      price: editingPrice,
-    });
+  const handleNotificationChange = (key) => {
+    setSettings(prev => ({
+      ...prev,
+      notifications: {
+        ...prev.notifications,
+        [key]: !prev.notifications[key],
+      },
+    }));
   };
 
-  const handleToggleActive = (serviceId, currentActive) => {
-    toggleActiveMutation.mutate({
-      serviceId,
-      currentActive,
-    });
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   };
-
-  if (isLoading) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading services...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.error}>Error loading services: {error.message}</div>
-      </div>
-    );
-  }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Services & Pricing Settings</h1>
+    <div style={{ maxWidth: '90rem', margin: '0 auto', padding: '2rem 1rem' }}>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: DARK_TEXT, marginBottom: '0.5rem' }}>Settings</h1>
+        <p style={{ color: LIGHT_GRAY }}>Manage business information and preferences</p>
       </div>
 
-      {/* Create New Service */}
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Add New Service</h2>
-        <div className={styles.form}>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Service Name</label>
-            <input
-              type="text"
-              value={newServiceName}
-              onChange={(e) => setNewServiceName(e.target.value)}
-              placeholder="e.g., Wash & Fold"
-              disabled={createServiceMutation.isPending}
-              className={styles.input}
-            />
-          </div>
+      {saved && (
+        <div style={{
+          background: '#d1fae5',
+          border: `2px solid ${SUCCESS}`,
+          borderRadius: '0.5rem',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          color: '#047857',
+          fontWeight: '500',
+        }}>
+          ✓ Settings saved successfully
+        </div>
+      )}
 
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Price ($)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={newServicePrice}
-              onChange={(e) => setNewServicePrice(e.target.value)}
-              placeholder="0.00"
-              disabled={createServiceMutation.isPending}
-              className={styles.input}
-            />
-          </div>
+      {/* Business Information */}
+      <div style={{ background: 'white', borderRadius: '0.5rem', padding: '2rem', marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: DARK_TEXT, marginBottom: '1.5rem' }}>Business Information</h2>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+          {[
+            { label: 'Business Name', field: 'businessName' },
+            { label: 'Email', field: 'email' },
+            { label: 'Phone', field: 'phone' },
+            { label: 'Address', field: 'address' },
+            { label: 'Operating Hours', field: 'operatingHours' },
+            { label: 'Default Pickup Fee ($)', field: 'defaultPickupFee' },
+          ].map(({ label, field }) => (
+            <div key={field}>
+              <label style={{ fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT, display: 'block', marginBottom: '0.5rem' }}>
+                {label}
+              </label>
+              <input
+                type={field === 'defaultPickupFee' ? 'number' : 'text'}
+                value={settings[field]}
+                onChange={(e) => handleInputChange(field, field === 'defaultPickupFee' ? parseFloat(e.target.value) : e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '0.375rem',
+                  border: `1px solid #d1d5db`,
+                  fontSize: '0.875rem',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
 
-          <button
-            onClick={handleCreateService}
-            disabled={createServiceMutation.isPending || !newServiceName || !newServicePrice}
-            className={styles.button}
-          >
-            {createServiceMutation.isPending ? 'Creating...' : 'Create Service'}
+      {/* Notification Settings */}
+      <div style={{ background: 'white', borderRadius: '0.5rem', padding: '2rem', marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: DARK_TEXT, marginBottom: '1.5rem' }}>Notifications</h2>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {[
+            { key: 'emailAlerts', label: 'Email Alerts' },
+            { key: 'smsAlerts', label: 'SMS Alerts' },
+            { key: 'orderUpdates', label: 'Order Updates' },
+          ].map(({ key, label }) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', backgroundColor: BG, borderRadius: '0.375rem' }}>
+              <input
+                type="checkbox"
+                checked={settings.notifications[key]}
+                onChange={() => handleNotificationChange(key)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <label style={{ fontSize: '0.875rem', fontWeight: '500', color: DARK_TEXT, cursor: 'pointer', margin: 0 }}>
+                {label}
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div style={{ background: 'white', borderRadius: '0.5rem', padding: '2rem', border: `2px solid #fecaca` }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#dc2626', marginBottom: '1rem' }}>Danger Zone</h2>
+        <p style={{ fontSize: '0.875rem', color: LIGHT_GRAY, marginBottom: '1rem' }}>Irreversible actions. Proceed with caution.</p>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+          <button style={{
+            padding: '0.75rem 1.5rem',
+            borderRadius: '0.375rem',
+            border: 'none',
+            background: '#fecaca',
+            color: '#dc2626',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            transition: 'all 0.3s',
+          }} onMouseEnter={(e) => e.currentTarget.style.background = '#fca5a5'} onMouseLeave={(e) => e.currentTarget.style.background = '#fecaca'}>
+            Export Data
+          </button>
+          <button style={{
+            padding: '0.75rem 1.5rem',
+            borderRadius: '0.375rem',
+            border: 'none',
+            background: '#fee2e2',
+            color: '#dc2626',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            transition: 'all 0.3s',
+          }} onMouseEnter={(e) => e.currentTarget.style.background = '#fecaca'} onMouseLeave={(e) => e.currentTarget.style.background = '#fee2e2'}>
+            Clear Cache
           </button>
         </div>
       </div>
 
-      {/* Services List */}
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Manage Services</h2>
-        {services.length === 0 ? (
-          <div className={styles.emptyState}>No services found</div>
-        ) : (
-          <div className={styles.servicesGrid}>
-            {services.map((service) => (
-              <div key={service.id} className={styles.serviceCard}>
-                <div className={styles.serviceHeader}>
-                  <h3 className={styles.serviceName}>{service.name}</h3>
-                  <span
-                    style={{
-                      backgroundColor: service.active ? '#34C759' : '#999',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    {service.active ? 'ACTIVE' : 'INACTIVE'}
-                  </span>
-                </div>
-
-                <div className={styles.serviceContent}>
-                  {editingId === service.id ? (
-                    <div className={styles.editingForm}>
-                      <div className={styles.formGroup}>
-                        <label className={styles.label}>New Price ($)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editingPrice}
-                          onChange={(e) => setEditingPrice(e.target.value)}
-                          disabled={updatePriceMutation.isPending}
-                          className={styles.input}
-                          autoFocus
-                        />
-                      </div>
-
-                      <div className={styles.buttonGroup}>
-                        <button
-                          onClick={() => handleUpdatePrice(service.id)}
-                          disabled={updatePriceMutation.isPending || !editingPrice}
-                          style={{
-                            backgroundColor: '#34C759',
-                            color: '#fff',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                          }}
-                        >
-                          {updatePriceMutation.isPending ? 'Saving...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingId(null);
-                            setEditingPrice('');
-                          }}
-                          disabled={updatePriceMutation.isPending}
-                          style={{
-                            backgroundColor: '#999',
-                            color: '#fff',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className={styles.priceDisplay}>
-                        <span className={styles.priceLabel}>Price:</span>
-                        <span className={styles.priceValue}>${parseFloat(service.price || 0).toFixed(2)}</span>
-                      </div>
-
-                      <div className={styles.buttonGroup}>
-                        <button
-                          onClick={() => {
-                            setEditingId(service.id);
-                            setEditingPrice(service.price);
-                          }}
-                          disabled={
-                            createServiceMutation.isPending ||
-                            updatePriceMutation.isPending ||
-                            toggleActiveMutation.isPending
-                          }
-                          style={{
-                            backgroundColor: '#007AFF',
-                            color: '#fff',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                          }}
-                        >
-                          Edit Price
-                        </button>
-
-                        <button
-                          onClick={() => handleToggleActive(service.id, service.active)}
-                          disabled={
-                            createServiceMutation.isPending ||
-                            updatePriceMutation.isPending ||
-                            toggleActiveMutation.isPending
-                          }
-                          style={{
-                            backgroundColor: service.active ? '#FF9500' : '#34C759',
-                            color: '#fff',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                          }}
-                        >
-                          {toggleActiveMutation.isPending
-                            ? 'Updating...'
-                            : service.active
-                            ? 'Deactivate'
-                            : 'Activate'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Save Button */}
+      <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
+        <button
+          onClick={handleSave}
+          style={{
+            padding: '0.75rem 2rem',
+            borderRadius: '0.375rem',
+            border: 'none',
+            background: ORANGE,
+            color: 'white',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            transition: 'all 0.3s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#cc5829'}
+          onMouseLeave={(e) => e.currentTarget.style.background = ORANGE}
+        >
+          Save Settings
+        </button>
       </div>
     </div>
   );

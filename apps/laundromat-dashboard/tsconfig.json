@@ -20,7 +20,10 @@
     "paths": {
       "@jiffylaundry/shared": [
         "../../packages/shared"
-      ]
+      ],
+      "@/components": ["./components"],
+      "@/lib": ["./lib"],
+      "@/*": ["./*"]
     },
     "isolatedModules": true,
     "noEmit": true,

@@ -1,5 +1,7 @@
+import { Tabs } from 'expo-router';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { getCurrentUser } from '../../../packages/shared/auth';
 
 export default function RootLayout() {
@@ -22,13 +24,55 @@ export default function RootLayout() {
 
   if (loading) return null;
 
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {isLoggedIn ? (
-        <Stack.Screen name="go-online" options={{ headerShown: false }} />
-      ) : (
+  if (!isLoggedIn) {
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
-      )}
-    </Stack>
+      </Stack>
+    );
+  }
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#FF5A00',
+        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopColor: '#E5E7EB',
+          paddingBottom: 8,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="go-online"
+        options={{
+          title: 'Dispatch',
+          tabBarIcon: ({ color }) => <Ionicons name="radio-button-on" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="active-order"
+        options={{
+          title: 'Active',
+          tabBarIcon: ({ color }) => <Ionicons name="location" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Earnings',
+          tabBarIcon: ({ color }) => <Ionicons name="cash" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+        }}
+      />
+    </Tabs>
   );
 }

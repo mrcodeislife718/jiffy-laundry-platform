@@ -1,251 +1,229 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { getOrderById, subscribeToOrder } from '../../../packages/shared/orders';
-import { getLatestDriverLocation, subscribeToDriverLocation } from '../../../packages/shared/location';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { useRouter, useSearchParams } from 'expo-router';
+import { supabase } from '@jiffylaundry/shared';
+
+const ORANGE = '#ff6b35';
+const DARK_TEXT = '#111827';
+const LIGHT_GRAY = '#6b7280';
+const BG = '#f9fafb';
+const SUCCESS = '#10b981';
+const WARNING = '#f59e0b';
+const INFO = '#3b82f6';
 
 export default function TrackingScreen() {
   const router = useRouter();
-  const { orderId } = useLocalSearchParams();
+  const searchParams = useSearchParams();
+  const orderId = searchParams?.get('orderId');
+  
+  const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
-  const [driverLocation, setDriverLocation] = useState(null);
+  const [driver, setDriver] = useState(null);
+  const [items, setItems] = useState([]);
+  const [address, setAddress] = useState(null);
 
-  // Fetch order
-  const { data: initialOrder, isLoading, error } = useQuery({
-    queryKey: ['order', orderId],
-    queryFn: () => getOrderById(orderId),
-    enabled: !!orderId,
-  });
-
-  useEffect(() => {
-    if (initialOrder) {
-      setOrder(initialOrder);
-    }
-  }, [initialOrder]);
-
-  // Subscribe to real-time updates
-  useEffect(() => {
-    if (!orderId) return;
-
-    const subscription = subscribeToOrder(orderId, (payload) => {
-      if (payload.eventType === 'UPDATE') {
-        setOrder(payload.new);
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe?.();
-    };
-  }, [orderId]);
-
-  // Load initial driver location
-  useEffect(() => {
-    if (!orderId) return;
-
-    const loadLocation = async () => {
-      try {
-        const location = await getLatestDriverLocation(orderId);
-        if (location) {
-          setDriverLocation(location);
-        }
-      } catch (err) {
-        console.error('Failed to load driver location:', err);
-      }
-    };
-
-    loadLocation();
-  }, [orderId]);
-
-  // Subscribe to driver location updates
-  useEffect(() => {
-    if (!orderId) return;
-
-    const subscription = subscribeToDriverLocation(orderId, (payload) => {
-      if (payload.eventType === 'INSERT') {
-        setDriverLocation(payload.new);
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe?.();
-    };
-  }, [orderId]);
-
-  if (!orderId) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.errorText}>Missing order ID</Text>
-      </View>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.errorText}>Error loading order</Text>
-      </View>
-    );
-  }
-
-  const getStatusColor = (status) => {
-    const statusColors = {
-      pending_payment: '#FF9500',
-      pending_dispatch: '#FF9500',
-      accepted: '#007AFF',
-      heading_to_pickup: '#007AFF',
-      arrived_at_pickup: '#007AFF',
-      picked_up: '#007AFF',
-      received: '#34C759',
-      sorting: '#34C759',
-      washing: '#34C759',
-      drying: '#34C759',
-      folding: '#34C759',
-      quality_check: '#34C759',
-      packed: '#34C759',
-      ready_for_delivery: '#34C759',
-      out_for_delivery: '#34C759',
-      delivered: '#34C759',
-      cancelled: '#FF3B30',
-      refunded: '#FF3B30',
-    };
-    return statusColors[status] || '#999';
-  };
-
-  const statusList = [
-    'pending_payment',
-    'pending_dispatch',
-    'accepted',
-    'heading_to_pickup',
-    'arrived_at_pickup',
-    'picked_up',
-    'received',
-    'sorting',
-    'washing',
-    'drying',
-    'folding',
-    'quality_check',
-    'packed',
-    'ready_for_delivery',
-    'out_for_delivery',
-    'delivered',
+  const statusSteps = [
+    { status: 'pending_payment', label: 'Payment', icon: '💳' },
+    { status: 'confirmed', label: 'Confirmed', icon: '✓' },
+    { status: 'picked_up', label: 'Picked Up', icon: '📦' },
+    { status: 'in_progress', label: 'Washing', icon: '🧺' },
+    { status: 'ready_for_delivery', label: 'Ready', icon: '✨' },
+    { status: 'delivered', label: 'Delivered', icon: '🏠' },
   ];
 
-  const currentStatusIndex = statusList.indexOf(order.status);
+  useEffect(() => {
+    if (orderId) {
+      loadOrderData();
+      const subscription = supabase
+        .channel(`order:${orderId}`)
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+          (payload) => setOrder(payload.new)
+        )
+        .subscribe();
+      return () => subscription.unsubscribe();
+    }
+  }, [orderId]);
+
+  const loadOrderData = async () => {
+    try {
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      setOrder(orderData);
+
+      if (orderData) {
+        const { data: addressData } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('id', orderData.pickup_address_id)
+          .single();
+        setAddress(addressData);
+
+        if (orderData.driver_id) {
+          const { data: driverData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', orderData.driver_id)
+            .single();
+          setDriver(driverData);
+        }
+
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', orderId);
+        setItems(itemsData || []);
+      }
+    } catch (err) {
+      console.error('Error loading order:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isStatusComplete = (status) => {
+    const currentIndex = statusSteps.findIndex(s => s.status === order?.status);
+    const stepIndex = statusSteps.findIndex(s => s.status === status);
+    return stepIndex < currentIndex || (stepIndex === currentIndex);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={ORANGE} />
+      </View>
+    );
+  }
+
+  if (!order) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>Order not found</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.link}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Order Tracking</Text>
-
-      {/* Order Info */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Order Information</Text>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.label}>Order ID:</Text>
-          <Text style={styles.value}>{String(orderId).slice(0, 8)}...</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.label}>Status:</Text>
-          <Text style={[styles.status, { color: getStatusColor(order.status) }]}>
-            {order.status?.replace(/_/g, ' ').toUpperCase()}
-          </Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.label}>Payment Status:</Text>
-          <Text style={styles.value}>{order.payment_status?.toUpperCase()}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.label}>Total:</Text>
-          <Text style={styles.value}>${(order.total || 0).toFixed(2)}</Text>
-        </View>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Order #{order.id.slice(0, 8)}</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      {/* Driver Location Map */}
-      {driverLocation ? (
+      <View style={styles.timeline}>
+        {statusSteps.map((step, index) => {
+          const isComplete = isStatusComplete(step.status);
+          const isCurrent = order.status === step.status;
+          
+          return (
+            <View key={step.status}>
+              <View style={styles.timelineItem}>
+                <View style={[
+                  styles.timelineCircle,
+                  isCurrent && { backgroundColor: ORANGE },
+                  isComplete && !isCurrent && { backgroundColor: SUCCESS },
+                  !isComplete && !isCurrent && { backgroundColor: '#e5e7eb' }
+                ]}>
+                  <Text style={styles.timelineIcon}>{step.icon}</Text>
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={[
+                    styles.timelineLabel,
+                    isCurrent && { color: ORANGE, fontWeight: 'bold' },
+                    isComplete && !isCurrent && { color: SUCCESS }
+                  ]}>
+                    {step.label}
+                  </Text>
+                </View>
+              </View>
+              {index < statusSteps.length - 1 && (
+                <View style={[
+                  styles.timelineConnector,
+                  isComplete && { backgroundColor: SUCCESS }
+                ]} />
+              )}
+            </View>
+          );
+        })}
+      </View>
+
+      {driver && order.status !== 'pending_payment' && order.status !== 'confirmed' && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Driver Location</Text>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: driverLocation.latitude,
-              longitude: driverLocation.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-          >
-            <Marker
-              coordinate={{
-                latitude: driverLocation.latitude,
-                longitude: driverLocation.longitude,
-              }}
-              title="Driver Location"
-              description="Current driver position"
-            />
-          </MapView>
-        </View>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Driver Location</Text>
-          <Text style={styles.noLocationText}>
-            {order.driver_id ? 'Waiting for driver location...' : 'Driver not yet assigned'}
-          </Text>
+          <Text style={styles.sectionTitle}>Driver</Text>
+          <View style={styles.driverCard}>
+            <Text style={styles.driverAvatar}>👤</Text>
+            <View style={styles.driverInfo}>
+              <Text style={styles.driverName}>{driver.full_name}</Text>
+              <Text style={styles.driverPhone}>{driver.phone}</Text>
+            </View>
+            <TouchableOpacity style={styles.callBtn}>
+              <Text style={styles.callBtnText}>📞</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
-      {/* Status Timeline */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Status Timeline</Text>
-
-        {statusList.slice(0, currentStatusIndex + 1).map((status, index) => (
-          <View key={status} style={styles.timelineItem}>
-            <View style={[styles.timelineCircle, { backgroundColor: getStatusColor(status) }]}>
-              <Text style={styles.timelineCheckmark}>✓</Text>
-            </View>
-            <Text style={styles.timelineText}>{status.replace(/_/g, ' ').toUpperCase()}</Text>
+        <Text style={styles.sectionTitle}>Delivery Address</Text>
+        <View style={styles.addressCard}>
+          <Text style={styles.addressIcon}>📍</Text>
+          <View style={styles.addressInfo}>
+            <Text style={styles.addressStreet}>{address?.street}</Text>
+            <Text style={styles.addressCity}>
+              {address?.city}, {address?.state} {address?.zip}
+            </Text>
           </View>
-        ))}
-
-        {currentStatusIndex < statusList.length - 1 && (
-          <>
-            {statusList.slice(currentStatusIndex + 1, Math.min(currentStatusIndex + 4, statusList.length)).map((status) => (
-              <View key={status} style={styles.timelineItem}>
-                <View style={[styles.timelineCircle, { backgroundColor: '#ddd' }]} />
-                <Text style={styles.timelineTextGray}>{status.replace(/_/g, ' ').toUpperCase()}</Text>
-              </View>
-            ))}
-          </>
-        )}
+        </View>
       </View>
 
-      {/* Actions */}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push('/(app)/orders')}
-      >
-        <Text style={styles.buttonText}>Back to Orders</Text>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Order Items</Text>
+        {items.map(item => (
+          <View key={item.id} style={styles.itemRow}>
+            <Text style={styles.itemName}>{item.service_name}</Text>
+            <Text style={styles.itemQty}>{item.quantity} {item.unit}</Text>
+            <Text style={styles.itemPrice}>${item.line_total?.toFixed(2) || '0.00'}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Subtotal</Text>
+          <Text style={styles.summaryValue}>${order.subtotal?.toFixed(2) || '0.00'}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Pickup Fee</Text>
+          <Text style={styles.summaryValue}>${order.pickup_fee?.toFixed(2) || '0.00'}</Text>
+        </View>
+        {order.tax && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Tax</Text>
+            <Text style={styles.summaryValue}>${order.tax.toFixed(2)}</Text>
+          </View>
+        )}
+        <View style={[styles.summaryRow, styles.totalRow]}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>${order.total?.toFixed(2) || '0.00'}</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.supportButton}>
+        <Text style={styles.supportButtonText}>💬 Contact Support</Text>
       </TouchableOpacity>
 
-      <View style={styles.spacer} />
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -253,107 +231,203 @@ export default function TrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
+    backgroundColor: BG,
+    paddingHorizontal: 16,
   },
   center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    marginTop: 50,
-  },
-  section: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
-  },
-  map: {
-    width: '100%',
-    height: 250,
-    borderRadius: 8,
-  },
-  noLocationText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    paddingVertical: 40,
-  },
-  infoRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-  },
-  value: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  status: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  timelineItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingVertical: 16,
+    paddingTop: 12,
   },
-  timelineCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  timelineCheckmark: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  timelineText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  timelineTextGray: {
-    fontSize: 14,
-    color: '#999',
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  buttonText: {
-    color: '#fff',
+  backBtn: {
+    color: ORANGE,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  spacer: {
-    height: 20,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: DARK_TEXT,
   },
   errorText: {
     fontSize: 16,
-    color: '#ff0000',
+    color: DARK_TEXT,
+    marginBottom: 16,
+  },
+  link: {
+    color: ORANGE,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  timeline: {
+    marginBottom: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  timelineCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#e5e7eb',
+  },
+  timelineIcon: {
+    fontSize: 24,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingTop: 12,
+  },
+  timelineLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: DARK_TEXT,
+  },
+  timelineConnector: {
+    width: 2,
+    height: 20,
+    marginLeft: 23,
+    backgroundColor: '#e5e7eb',
+  },
+  section: {
+    marginBottom: 24,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+    marginBottom: 12,
+  },
+  driverCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  driverAvatar: {
+    fontSize: 40,
+  },
+  driverInfo: {
+    flex: 1,
+  },
+  driverName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+  },
+  driverPhone: {
+    fontSize: 12,
+    color: LIGHT_GRAY,
+    marginTop: 4,
+  },
+  callBtn: {
+    backgroundColor: ORANGE,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  callBtnText: {
+    fontSize: 18,
+  },
+  addressCard: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addressIcon: {
+    fontSize: 24,
+  },
+  addressInfo: {
+    flex: 1,
+  },
+  addressStreet: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+  },
+  addressCity: {
+    fontSize: 12,
+    color: LIGHT_GRAY,
+    marginTop: 4,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  itemName: {
+    fontSize: 13,
+    color: DARK_TEXT,
+    fontWeight: '500',
+  },
+  itemQty: {
+    fontSize: 12,
+    color: LIGHT_GRAY,
+  },
+  itemPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: DARK_TEXT,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: LIGHT_GRAY,
+  },
+  summaryValue: {
+    fontSize: 13,
+    color: DARK_TEXT,
+    fontWeight: '500',
+  },
+  totalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 12,
+    marginTop: 12,
+  },
+  totalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+  },
+  totalValue: {
+    fontSize: 16,
     fontWeight: 'bold',
+    color: ORANGE,
+  },
+  supportButton: {
+    backgroundColor: ORANGE,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  supportButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

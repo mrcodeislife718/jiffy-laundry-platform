@@ -1,316 +1,301 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  ActivityIndicator,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { authAPI } from '@jiffylaundry/shared';
-import { getServices, createOrderWithItems } from '../../../packages/shared/orders';
-import { getUserAddresses } from '../../../packages/shared/addresses';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { useRouter, useSearchParams } from 'expo-router';
+import { supabase } from '@jiffylaundry/shared';
 
-export default function CreateOrderScreen() {
+const ORANGE = '#ff6b35';
+const DARK_TEXT = '#111827';
+const LIGHT_GRAY = '#6b7280';
+const BG = '#f9fafb';
+
+export default function SchedulePickupScreen() {
   const router = useRouter();
-  const [userId, setUserId] = useState(null);
-  const [defaultAddress, setDefaultAddress] = useState(null);
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [quantities, setQuantities] = useState({});
-  const [tip, setTip] = useState('0');
-  const [showSummary, setShowSummary] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [weight, setWeight] = useState('10');
+  const [services, setServices] = useState([]);
+  const [estimatedPrice, setEstimatedPrice] = useState(0);
 
-  // Fee formula constants
-  const PICKUP_FEE = 2.0;
-  const SERVICE_FEE_PERCENT = 0.08;
-  const TAX_PERCENT = 0.08875;
+  const timeSlots = [
+    '8 AM - 10 AM',
+    '10 AM - 12 PM',
+    '12 PM - 2 PM',
+    '2 PM - 4 PM',
+    '4 PM - 6 PM',
+    '6 PM - 8 PM',
+  ];
 
-  // Load current user
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const { data } = await authAPI.getSession();
-        if (data.session?.user) {
-          setUserId(data.session.user.id);
-        } else {
-          router.replace('/(auth)/login');
-        }
-      } catch (err) {
-        Alert.alert('Error', 'Failed to load user');
-        router.replace('/(auth)/login');
-      }
-    };
-    loadUser();
+    loadData();
   }, []);
 
-  // Fetch services
-  const { data: services = [], isLoading: servicesLoading, error: servicesError } = useQuery({
-    queryKey: ['services'],
-    queryFn: getServices,
-  });
+  const loadData = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        router.replace('/(auth)/login');
+        return;
+      }
+      setUser(authUser);
 
-  // Fetch user's addresses
-  const { data: addresses = [], isLoading: addressesLoading } = useQuery({
-    queryKey: ['addresses', userId],
-    queryFn: () => getUserAddresses(userId),
-    enabled: !!userId,
-  });
+      // Get user addresses
+      const { data: userAddresses } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', authUser.id);
+      setAddresses(userAddresses || []);
+      if (userAddresses && userAddresses.length > 0) {
+        setSelectedAddress(userAddresses[0]);
+      }
 
-  // Set default address
+      // Get services
+      const { data: servicesList } = await supabase
+        .from('services')
+        .select('*')
+        .eq('active', true);
+      setServices(servicesList || []);
+
+      // Set default date to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setSelectedDate(tomorrow.toISOString().split('T')[0]);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculatePrice = () => {
+    const w = parseFloat(weight) || 0;
+    const total = selectedServices.reduce((sum, serviceId) => {
+      const service = services.find(s => s.id === serviceId);
+      return sum + (service?.price || 0) * w;
+    }, 0) + 2.0;
+    setEstimatedPrice(total);
+  };
+
   useEffect(() => {
-    if (addresses.length > 0) {
-      const defaultAddr = addresses.find((a) => a.is_default) || addresses[0];
-      setDefaultAddress(defaultAddr);
-    }
-  }, [addresses]);
+    calculatePrice();
+  }, [weight, selectedServices]);
 
-  // Calculate totals
-  const calculateTotals = () => {
-    let subtotal = 0;
-    const items = [];
-
-    Object.entries(quantities).forEach(([serviceId, quantity]) => {
-      if (quantity > 0) {
-        const service = services.find((s) => s.id === serviceId);
-        if (service) {
-          const lineTotal = service.price * quantity;
-          subtotal += lineTotal;
-          items.push({
-            service_id: serviceId,
-            service_name: service.name,
-            quantity: parseInt(quantity),
-            unit: service.unit,
-            unit_price: service.price,
-            line_total: lineTotal,
-          });
-        }
-      }
-    });
-
-    const pickupFee = PICKUP_FEE;
-    const serviceFee = subtotal * SERVICE_FEE_PERCENT;
-    const tax = subtotal * TAX_PERCENT;
-    const tipAmount = parseFloat(tip) || 0;
-    const total = subtotal + pickupFee + serviceFee + tax + tipAmount;
-
-    return {
-      subtotal,
-      pickupFee,
-      serviceFee,
-      tax,
-      tip: tipAmount,
-      total,
-      items,
-    };
+  const toggleService = (serviceId) => {
+    setSelectedServices(prev =>
+      prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
   };
 
-  // Create order mutation
-  const createOrderMutation = useMutation({
-    mutationFn: async () => {
-      if (!defaultAddress) {
-        throw new Error('Please add an address first');
+  const handleContinue = async () => {
+    if (!selectedAddress || !selectedDate || !selectedTime || selectedServices.length === 0) {
+      Alert.alert('Missing Info', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      // Create order
+      const { data: order, error } = await supabase
+        .from('orders')
+        .insert([{
+          customer_id: user.id,
+          pickup_address_id: selectedAddress.id,
+          status: 'pending_payment',
+          payment_status: 'unpaid',
+          subtotal: estimatedPrice - 2.0,
+          pickup_fee: 2.0,
+          total: estimatedPrice,
+          sla_deadline: new Date(selectedDate + ' ' + selectedTime).toISOString(),
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create order items
+      for (const serviceId of selectedServices) {
+        const service = services.find(s => s.id === serviceId);
+        await supabase.from('order_items').insert([{
+          order_id: order.id,
+          service_id: serviceId,
+          service_name: service?.name,
+          quantity: parseFloat(weight),
+          unit: service?.unit,
+          unit_price: service?.price,
+          line_total: service?.price * parseFloat(weight),
+        }]);
       }
 
-      if (selectedItems.length === 0) {
-        throw new Error('Please select at least one service');
-      }
-
-      const totals = calculateTotals();
-
-      const orderPayload = {
-        customer_id: userId,
-        pickup_address_id: defaultAddress.id,
-        status: 'pending_payment',
-        payment_status: 'unpaid',
-        subtotal: totals.subtotal,
-        pickup_fee: totals.pickupFee,
-        service_fee: totals.serviceFee,
-        tax: totals.tax,
-        tip: totals.tip,
-        total: totals.total,
-      };
-
-      const result = await createOrderWithItems({
-        orderPayload,
-        items: totals.items,
-      });
-
-      return result;
-    },
-    onSuccess: (order) => {
       router.push(`/checkout?orderId=${order.id}`);
-    },
-    onError: (err) => {
-      Alert.alert('Error', err.message || 'Failed to create order');
-    },
-  });
-
-  const handleSelectService = (serviceId) => {
-    if (selectedItems.includes(serviceId)) {
-      setSelectedItems(selectedItems.filter((id) => id !== serviceId));
-      setQuantities({ ...quantities, [serviceId]: 0 });
-    } else {
-      setSelectedItems([...selectedItems, serviceId]);
-      setQuantities({ ...quantities, [serviceId]: 1 });
+    } catch (err) {
+      Alert.alert('Error', err.message);
     }
   };
 
-  const handleQuantityChange = (serviceId, quantity) => {
-    const q = parseInt(quantity) || 0;
-    if (q === 0) {
-      setSelectedItems(selectedItems.filter((id) => id !== serviceId));
-    } else {
-      if (!selectedItems.includes(serviceId)) {
-        setSelectedItems([...selectedItems, serviceId]);
-      }
-    }
-    setQuantities({ ...quantities, [serviceId]: q });
-  };
-
-  const handleCreateOrder = async () => {
-    createOrderMutation.mutate();
-  };
-
-  if (servicesLoading || addressesLoading || !userId || !defaultAddress) {
+  if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={ORANGE} />
       </View>
     );
   }
 
-  if (servicesError) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.errorText}>Error loading services</Text>
-      </View>
-    );
-  }
-
-  const totals = calculateTotals();
-  const hasItems = selectedItems.length > 0;
-
-  const renderService = ({ item }) => {
-    const isSelected = selectedItems.includes(item.id);
-    const quantity = quantities[item.id] || 0;
-
-    return (
-      <View style={[styles.serviceItem, isSelected && styles.selectedService]}>
-        <TouchableOpacity
-          style={styles.serviceSelect}
-          onPress={() => handleSelectService(item.id)}
-        >
-          <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-            {isSelected && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-          <View style={styles.serviceInfo}>
-            <Text style={styles.serviceName}>{item.name}</Text>
-            <Text style={styles.servicePrice}>
-              ${item.price.toFixed(2)} per {item.unit}
-            </Text>
-          </View>
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>← Back</Text>
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Schedule Pickup</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
-        {isSelected && (
-          <View style={styles.quantityControl}>
-            <TextInput
-              style={styles.quantityInput}
-              placeholder="Qty"
-              value={String(quantity)}
-              onChangeText={(text) => handleQuantityChange(item.id, text)}
-              keyboardType="decimal-pad"
-            />
-            <Text style={styles.quantityLabel}>{item.unit}</Text>
+      {/* Pickup Address */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Pickup Address</Text>
+        {selectedAddress && (
+          <View style={styles.addressCard}>
+            <Text style={styles.addressIcon}>📍</Text>
+            <View style={styles.addressInfo}>
+              <Text style={styles.addressStreet}>{selectedAddress.street}</Text>
+              <Text style={styles.addressCity}>
+                {selectedAddress.city}, {selectedAddress.state} {selectedAddress.zip}
+              </Text>
+            </View>
+            <TouchableOpacity>
+              <Text style={styles.change}>Change</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
-    );
-  };
 
-  return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Create Order</Text>
-
-      <View style={styles.addressSection}>
-        <Text style={styles.sectionTitle}>Pickup Address</Text>
-        <View style={styles.addressCard}>
-          <Text style={styles.addressStreet}>{defaultAddress.street}</Text>
-          <Text style={styles.addressCity}>
-            {defaultAddress.city}, {defaultAddress.state} {defaultAddress.zip}
-          </Text>
+      {/* Pickup Date */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Pickup Date</Text>
+        <View style={styles.dateGrid}>
+          {Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() + i + 1);
+            const dateStr = d.toISOString().split('T')[0];
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            const dateNum = d.getDate();
+            return (
+              <TouchableOpacity
+                key={dateStr}
+                style={[
+                  styles.dateButton,
+                  selectedDate === dateStr && styles.dateButtonSelected,
+                ]}
+                onPress={() => setSelectedDate(dateStr)}
+              >
+                <Text style={[
+                  styles.dateDayName,
+                  selectedDate === dateStr && styles.dateTextSelected,
+                ]}>
+                  {dayName}
+                </Text>
+                <Text style={[
+                  styles.dateNum,
+                  selectedDate === dateStr && styles.dateTextSelected,
+                ]}>
+                  {dateNum}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        <TouchableOpacity onPress={() => router.push('/addresses')}>
-          <Text style={styles.changeLink}>Change Address</Text>
-        </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>Select Services</Text>
-      <FlatList
-        data={services}
-        renderItem={renderService}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        contentContainerStyle={{ marginBottom: 20 }}
-      />
+      {/* Pickup Time */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Pickup Time</Text>
+        <View style={styles.timeGrid}>
+          {timeSlots.map(slot => (
+            <TouchableOpacity
+              key={slot}
+              style={[
+                styles.timeButton,
+                selectedTime === slot && styles.timeButtonSelected,
+              ]}
+              onPress={() => setSelectedTime(slot)}
+            >
+              <Text style={[
+                styles.timeText,
+                selectedTime === slot && styles.timeTextSelected,
+              ]}>
+                {slot}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-      {hasItems && (
-        <>
-          <View style={styles.summarySection}>
-            <Text style={styles.sectionTitle}>Order Summary</Text>
+      {/* Laundry Type */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Laundry Type</Text>
+        <View style={styles.serviceGrid}>
+          {services.map(service => (
+            <TouchableOpacity
+              key={service.id}
+              style={[
+                styles.serviceButton,
+                selectedServices.includes(service.id) && styles.serviceButtonSelected,
+              ]}
+              onPress={() => toggleService(service.id)}
+            >
+              <Text style={[
+                styles.serviceName,
+                selectedServices.includes(service.id) && styles.serviceNameSelected,
+              ]}>
+                {service.name}
+              </Text>
+              <Text style={[
+                styles.servicePrice,
+                selectedServices.includes(service.id) && styles.servicePriceSelected,
+              ]}>
+                ${service.price}/{service.unit}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.label}>Subtotal:</Text>
-              <Text style={styles.value}>${totals.subtotal.toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.label}>Pickup Fee:</Text>
-              <Text style={styles.value}>${totals.pickupFee.toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.label}>Service Fee (8%):</Text>
-              <Text style={styles.value}>${totals.serviceFee.toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.label}>Tax (8.875%):</Text>
-              <Text style={styles.value}>${totals.tax.toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.tipRow}>
-              <Text style={styles.label}>Tip:</Text>
-              <TextInput
-                style={styles.tipInput}
-                placeholder="$0.00"
-                value={tip}
-                onChangeText={setTip}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total:</Text>
-              <Text style={styles.totalValue}>${totals.total.toFixed(2)}</Text>
-            </View>
+      {/* Weight Input */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Est. Weight (lbs)</Text>
+        <View style={styles.weightContainer}>
+          <Text style={styles.label}>Est. Weight</Text>
+          <View style={styles.inputWrapper}>
+            <TouchableOpacity onPress={() => setWeight(String(Math.max(1, parseFloat(weight) - 1)))}>
+              <Text style={styles.button}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.weightValue}>{weight} lbs</Text>
+            <TouchableOpacity onPress={() => setWeight(String(parseFloat(weight) + 1))}>
+              <Text style={styles.button}>+</Text>
+            </TouchableOpacity>
           </View>
+          <Text style={styles.label}>Est. Price</Text>
+          <Text style={styles.priceValue}>${estimatedPrice.toFixed(2)}</Text>
+        </View>
+      </View>
 
-          <TouchableOpacity
-            style={[styles.button, createOrderMutation.isPending && styles.buttonDisabled]}
-            onPress={handleCreateOrder}
-            disabled={createOrderMutation.isPending}
-          >
-            <Text style={styles.buttonText}>
-              {createOrderMutation.isPending ? 'Creating Order...' : 'Continue to Checkout'}
-            </Text>
-          </TouchableOpacity>
-        </>
-      )}
+      {/* Continue Button */}
+      <TouchableOpacity 
+        style={styles.continueButton}
+        onPress={handleContinue}
+      >
+        <Text style={styles.continueButtonText}>Continue</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -318,188 +303,207 @@ export default function CreateOrderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
+    backgroundColor: BG,
+    paddingHorizontal: 16,
   },
   center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    marginTop: 50,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingTop: 12,
   },
-  sectionTitle: {
+  backBtn: {
+    color: ORANGE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
-    marginTop: 20,
+    color: DARK_TEXT,
   },
-  addressSection: {
-    marginBottom: 20,
+  section: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+    marginBottom: 12,
   },
   addressCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: 'white',
     borderRadius: 8,
     padding: 12,
-    marginBottom: 10,
-  },
-  addressStreet: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  addressCity: {
-    fontSize: 14,
-    color: '#666',
-  },
-  changeLink: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  serviceItem: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ddd',
-  },
-  selectedService: {
-    borderLeftColor: '#007AFF',
-    backgroundColor: '#f0f8ff',
-  },
-  serviceSelect: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  addressIcon: {
+    fontSize: 24,
   },
-  checkboxSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#007AFF',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  serviceInfo: {
+  addressInfo: {
     flex: 1,
   },
-  serviceName: {
-    fontSize: 16,
+  addressStreet: {
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    color: DARK_TEXT,
+  },
+  addressCity: {
+    fontSize: 12,
+    color: LIGHT_GRAY,
+    marginTop: 4,
+  },
+  change: {
+    color: ORANGE,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  dateButtonSelected: {
+    backgroundColor: ORANGE,
+    borderColor: ORANGE,
+  },
+  dateDayName: {
+    fontSize: 11,
+    color: LIGHT_GRAY,
+    fontWeight: '500',
+  },
+  dateNum: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: DARK_TEXT,
+    marginTop: 2,
+  },
+  dateTextSelected: {
+    color: 'white',
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timeButton: {
+    flex: 1,
+    minWidth: '48%',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  timeButtonSelected: {
+    backgroundColor: ORANGE,
+    borderColor: ORANGE,
+  },
+  timeText: {
+    fontSize: 13,
+    color: DARK_TEXT,
+    fontWeight: '500',
+  },
+  timeTextSelected: {
+    color: 'white',
+  },
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  serviceButton: {
+    flex: 1,
+    minWidth: '48%',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  serviceButtonSelected: {
+    backgroundColor: ORANGE,
+    borderColor: ORANGE,
+  },
+  serviceName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: DARK_TEXT,
+  },
+  serviceNameSelected: {
+    color: 'white',
   },
   servicePrice: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 11,
+    color: LIGHT_GRAY,
+    marginTop: 4,
   },
-  quantityControl: {
+  servicePriceSelected: {
+    color: 'white',
+    opacity: 0.9,
+  },
+  weightContainer: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  quantityInput: {
-    width: 60,
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    fontSize: 14,
-  },
-  quantityLabel: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#666',
-  },
-  summarySection: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  tipRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    gap: 12,
   },
   label: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: LIGHT_GRAY,
   },
-  value: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  tipInput: {
-    width: 80,
-    height: 32,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    fontSize: 14,
-    backgroundColor: '#fff',
-  },
-  totalRow: {
-    borderTopWidth: 2,
-    borderTopColor: '#ddd',
-    paddingTopMargin: 10,
-    marginTop: 10,
-    paddingTop: 10,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#007AFF',
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   button: {
-    backgroundColor: '#007AFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: DARK_TEXT,
+    paddingHorizontal: 8,
+  },
+  weightValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DARK_TEXT,
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  priceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: DARK_TEXT,
+  },
+  continueButton: {
+    backgroundColor: ORANGE,
     borderRadius: 8,
-    padding: 14,
+    padding: 16,
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 16,
   },
-  buttonDisabled: {
-    backgroundColor: '#999',
-  },
-  buttonText: {
-    color: '#fff',
+  continueButtonText: {
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff0000',
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });

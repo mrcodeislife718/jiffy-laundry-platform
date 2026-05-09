@@ -1,196 +1,165 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, FlatList } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { getCurrentUser } from '../../../packages/shared/auth';
-import { getWallet, getWalletTransactions } from '../../../packages/shared/wallet';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { supabase } from '@jiffylaundry/shared';
+
+const ORANGE = '#ff6b35';
+const DARK_TEXT = '#111827';
+const LIGHT_GRAY = '#6b7280';
+const BG = '#f9fafb';
+const SUCCESS = '#10b981';
+const DANGER = '#ef4444';
 
 export default function WalletScreen() {
-  const [currentUser, setCurrentUser] = React.useState(null);
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [transactions, setTransactions] = useState([]);
 
-  // Get current user
-  React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        setCurrentUser(user);
-      } catch (err) {
-        console.error('Failed to load user:', err);
-      }
-    };
-    loadUser();
+  useEffect(() => {
+    loadWalletData();
   }, []);
 
-  // Fetch wallet
-  const {
-    data: wallet,
-    isLoading: walletLoading,
-    error: walletError,
-  } = useQuery({
-    queryKey: ['wallet', currentUser?.id],
-    queryFn: () => getWallet(currentUser.id),
-    enabled: !!currentUser?.id,
-  });
+  const loadWalletData = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        router.replace('/(auth)/login');
+        return;
+      }
+      setUser(authUser);
 
-  // Fetch wallet transactions
-  const {
-    data: transactions = [],
-    isLoading: transactionsLoading,
-    error: transactionsError,
-  } = useQuery({
-    queryKey: ['wallet-transactions', currentUser?.id],
-    queryFn: () => getWalletTransactions(currentUser.id),
-    enabled: !!currentUser?.id,
-  });
+      // Get wallet balance
+      const { data: wallet } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .single();
+      setWalletBalance(wallet?.balance || 0);
 
-  if (!currentUser) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.error}>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (walletLoading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
-
-  if (walletError) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.error}>Error loading wallet: {walletError.message}</Text>
-      </View>
-    );
-  }
-
-  if (!wallet) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.error}>Wallet not found</Text>
-      </View>
-    );
-  }
-
-  const getTransactionColor = (type) => {
-    switch (type) {
-      case 'credit':
-        return '#34C759';
-      case 'debit':
-        return '#FF3B30';
-      case 'refund':
-        return '#007AFF';
-      default:
-        return '#999';
+      // Get transactions (last 50)
+      const { data: txns } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('wallet_id', wallet?.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setTransactions(txns || []);
+    } catch (err) {
+      console.error('Error loading wallet:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const getTransactionIcon = (type) => {
     switch (type) {
       case 'credit':
-        return '+';
+        return '➕';
       case 'debit':
-        return '−';
+        return '➖';
       case 'refund':
-        return '↶';
+        return '↩️';
       default:
-        return '•';
+        return '💰';
     }
   };
 
+  const getTransactionColor = (type) => {
+    switch (type) {
+      case 'credit':
+        return SUCCESS;
+      case 'refund':
+        return '#3b82f6';
+      case 'debit':
+        return DANGER;
+      default:
+        return LIGHT_GRAY;
+    }
+  };
+
+  const formatAmount = (type, amount) => {
+    const prefix = type === 'debit' ? '-' : '+';
+    return `${prefix}$${Math.abs(amount).toFixed(2)}`;
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={ORANGE} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Wallet</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
       {/* Balance Card */}
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Available Balance</Text>
-        <Text style={styles.balanceAmount}>
-          ${parseFloat(wallet.balance || 0).toFixed(2)}
-        </Text>
-        <View style={styles.balanceFooter}>
-          <Text style={styles.balanceSubtext}>
-            Total Spent: ${parseFloat(wallet.total_spent || 0).toFixed(2)}
-          </Text>
-          <Text style={styles.balanceSubtext}>
-            Total Credited: ${parseFloat(wallet.total_credited || 0).toFixed(2)}
-          </Text>
-        </View>
+        <Text style={styles.balanceAmount}>${walletBalance.toFixed(2)}</Text>
+        <TouchableOpacity style={styles.addMoneyBtn}>
+          <Text style={styles.addMoneyBtnText}>+ Add Money</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Transactions Section */}
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity style={styles.actionBtn}>
+          <Text style={styles.actionIcon}>🔄</Text>
+          <Text style={styles.actionLabel}>Auto-Pay</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn}>
+          <Text style={styles.actionIcon}>📊</Text>
+          <Text style={styles.actionLabel}>Statement</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn}>
+          <Text style={styles.actionIcon}>⚙️</Text>
+          <Text style={styles.actionLabel}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Transactions History */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Transactions</Text>
-          {transactionsLoading && (
-            <ActivityIndicator size="small" color="#007AFF" />
-          )}
-        </View>
-
-        {transactionsError && (
-          <Text style={styles.error}>
-            Error loading transactions: {transactionsError.message}
-          </Text>
-        )}
-
+        <Text style={styles.sectionTitle}>Transaction History</Text>
+        
         {transactions.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No transactions yet</Text>
+            <Text style={styles.emptyIcon}>💰</Text>
+            <Text style={styles.emptyText}>No transactions yet</Text>
           </View>
         ) : (
-          <View style={styles.transactionsList}>
-            {transactions.map((transaction, index) => (
-              <View
-                key={transaction.id}
-                style={[
-                  styles.transactionItem,
-                  index !== transactions.length - 1 && styles.transactionItemBorder,
-                ]}
-              >
-                <View style={styles.transactionIcon}>
-                  <Text
-                    style={[
-                      styles.transactionIconText,
-                      { color: getTransactionColor(transaction.type) },
-                    ]}
-                  >
-                    {getTransactionIcon(transaction.type)}
-                  </Text>
-                </View>
-                <View style={styles.transactionContent}>
-                  <Text style={styles.transactionDescription}>
-                    {transaction.description || 'Transaction'}
-                  </Text>
-                  <Text style={styles.transactionDate}>
-                    {new Date(transaction.created_at).toLocaleDateString()}{' '}
-                    {new Date(transaction.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    { color: getTransactionColor(transaction.type) },
-                  ]}
-                >
-                  {transaction.type === 'debit' ? '−' : '+'}$
-                  {parseFloat(transaction.amount || 0).toFixed(2)}
+          transactions.map(txn => (
+            <View key={txn.id} style={styles.transactionCard}>
+              <View style={[styles.txnIcon, { backgroundColor: getTransactionColor(txn.type) }]}>
+                <Text style={styles.txnIconText}>{getTransactionIcon(txn.type)}</Text>
+              </View>
+              <View style={styles.txnInfo}>
+                <Text style={styles.txnDescription}>{txn.description}</Text>
+                <Text style={styles.txnDate}>
+                  {new Date(txn.created_at).toLocaleDateString()}
                 </Text>
               </View>
-            ))}
-          </View>
+              <Text style={[styles.txnAmount, { color: getTransactionColor(txn.type) }]}>
+                {formatAmount(txn.type, txn.amount)}
+              </Text>
+            </View>
+          ))
         )}
       </View>
 
-      {/* Info Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Wallet transactions are updated in real-time. Your balance reflects all completed
-          orders and credits.
-        </Text>
-      </View>
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -198,127 +167,138 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: BG,
+    paddingHorizontal: 16,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingTop: 12,
+  },
+  backBtn: {
+    color: ORANGE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: DARK_TEXT,
   },
   balanceCard: {
-    backgroundColor: '#007AFF',
-    margin: 16,
-    padding: 20,
+    backgroundColor: ORANGE,
     borderRadius: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#ffffff99',
+    color: 'white',
+    opacity: 0.9,
     marginBottom: 8,
-    fontWeight: '500',
   },
   balanceAmount: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 12,
+    color: 'white',
+    marginBottom: 16,
   },
-  balanceFooter: {
+  addMoneyBtn: {
+    backgroundColor: 'white',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  addMoneyBtnText: {
+    color: ORANGE,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  quickActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#ffffff33',
-    paddingTop: 12,
+    justifyContent: 'space-around',
+    marginBottom: 28,
   },
-  balanceSubtext: {
+  actionBtn: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    width: '30%',
+  },
+  actionIcon: {
+    fontSize: 28,
+    marginBottom: 4,
+  },
+  actionLabel: {
     fontSize: 12,
-    color: '#ffffff99',
+    color: DARK_TEXT,
+    fontWeight: '500',
   },
   section: {
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  emptyState: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptyStateText: {
     fontSize: 14,
-    color: '#999',
+    fontWeight: '600',
+    color: DARK_TEXT,
+    marginBottom: 12,
   },
-  transactionsList: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  transactionItem: {
+  transactionCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 8,
     padding: 12,
+    marginBottom: 8,
   },
-  transactionItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  transactionIcon: {
+  txnIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  transactionIconText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  txnIconText: {
+    fontSize: 20,
   },
-  transactionContent: {
+  txnInfo: {
     flex: 1,
   },
-  transactionDescription: {
-    fontSize: 14,
-    color: '#333',
+  txnDescription: {
+    fontSize: 13,
     fontWeight: '500',
-    marginBottom: 2,
+    color: DARK_TEXT,
   },
-  transactionDate: {
-    fontSize: 12,
-    color: '#999',
+  txnDate: {
+    fontSize: 11,
+    color: LIGHT_GRAY,
+    marginTop: 2,
   },
-  transactionAmount: {
+  txnAmount: {
     fontSize: 14,
     fontWeight: '600',
   },
-  footer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+  emptyState: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 32,
     alignItems: 'center',
   },
-  footerText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 18,
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
   },
-  error: {
-    color: '#FF3B30',
+  emptyText: {
     fontSize: 14,
-    textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 16,
+    color: LIGHT_GRAY,
   },
 });

@@ -1,154 +1,160 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { getCurrentUser, getCurrentProfile } from '@jiffylaundry/shared/auth';
-import { getLaundomatOrders } from '@jiffylaundry/shared/orders';
-import styles from './orders.module.css';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@jiffylaundry/shared';
+
+const ORANGE = '#ff6b35';
+const DARK_TEXT = '#111827';
+const LIGHT_GRAY = '#6b7280';
+const BG = '#f9fafb';
+const SUCCESS = '#10b981';
+const WARNING = '#f59e0b';
+const DANGER = '#ef4444';
 
 export default function OrdersPage() {
-  const [currentUser, setCurrentUser] = React.useState(null);
-  const [laundrommat_id, setLaundromat_id] = React.useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
-  // Get current user profile
-  React.useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (user) {
-          setCurrentUser(user);
-          const profile = await getCurrentProfile();
-          if (profile && profile.laundromat_id) {
-            setLaundromat_id(profile.laundromat_id);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load profile:', err);
-      }
-    };
-    loadProfile();
+  useEffect(() => {
+    loadOrders();
   }, []);
 
-  // Fetch orders
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ['laundromat-orders', laundrommat_id],
-    queryFn: () => getLaundomatOrders(laundrommat_id),
-    enabled: !!laundrommat_id,
-  });
+  const loadOrders = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('orders')
+        .select('*, profiles(full_name, phone_number)')
+        .gte('created_at', today)
+        .order('created_at', { ascending: false });
+
+      setOrders(data || []);
+    } catch (err) {
+      console.error('Error loading orders:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     const colors = {
-      received: '#FF9500',
-      sorting: '#007AFF',
-      washing: '#007AFF',
-      drying: '#007AFF',
-      folding: '#34C759',
-      quality_check: '#34C759',
-      packed: '#34C759',
-      ready_for_delivery: '#34C759',
+      pending_payment: WARNING,
+      pending_dispatch: '#6366f1',
+      picked_up: '#8b5cf6',
+      washing: '#0ea5e9',
+      ready_for_delivery: '#06b6d4',
+      out_for_delivery: ORANGE,
+      delivered: SUCCESS,
+      cancelled: DANGER,
     };
-    return colors[status] || '#999';
+    return colors[status] || LIGHT_GRAY;
   };
 
-  if (!currentUser) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.error}>Not authenticated</div>
-      </div>
-    );
-  }
+  const getStatusLabel = (status) => {
+    return status.replace(/_/g, ' ').toUpperCase();
+  };
 
-  if (!laundrommat_id) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.error}>No laundromat assigned to your account</div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading orders...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.error}>Error loading orders: {error.message}</div>
-      </div>
-    );
-  }
+  const filteredOrders = filter === 'all' ? orders : orders.filter(o => o.status === filter);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Order Queue</h1>
-        <p className={styles.subtitle}>
-          {orders.length} order{orders.length !== 1 ? 's' : ''} in queue
-        </p>
+    <div style={{ maxWidth: '90rem', margin: '0 auto', padding: '2rem 1rem' }}>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: DARK_TEXT, marginBottom: '0.5rem' }}>Today's Orders</h1>
+        <p style={{ color: LIGHT_GRAY }}>Manage and track all orders for today</p>
       </div>
 
-      {orders.length === 0 ? (
-        <div className={styles.emptyState}>
-          <p>No orders in queue</p>
+      {/* Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1.5rem', borderLeft: `4px solid ${SUCCESS}` }}>
+          <p style={{ fontSize: '0.875rem', color: LIGHT_GRAY, marginBottom: '0.5rem' }}>Total Orders</p>
+          <p style={{ fontSize: '1.875rem', fontWeight: 'bold', color: DARK_TEXT }}>{orders.length}</p>
         </div>
-      ) : (
-        <div className={styles.tableContainer}>
-          <table className={styles.table}>
-            <thead>
-              <tr className={styles.tableHeader}>
-                <th className={styles.th}>Order ID</th>
-                <th className={styles.th}>Customer</th>
-                <th className={styles.th}>Items</th>
-                <th className={styles.th}>Status</th>
-                <th className={styles.th}>Created</th>
-                <th className={styles.th}>Action</th>
+        <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1.5rem', borderLeft: `4px solid ${ORANGE}` }}>
+          <p style={{ fontSize: '0.875rem', color: LIGHT_GRAY, marginBottom: '0.5rem' }}>In Progress</p>
+          <p style={{ fontSize: '1.875rem', fontWeight: 'bold', color: DARK_TEXT }}>
+            {orders.filter(o => !['delivered', 'cancelled', 'pending_payment'].includes(o.status)).length}
+          </p>
+        </div>
+        <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1.5rem', borderLeft: `4px solid ${SUCCESS}` }}>
+          <p style={{ fontSize: '0.875rem', color: LIGHT_GRAY, marginBottom: '0.5rem' }}>Completed</p>
+          <p style={{ fontSize: '1.875rem', fontWeight: 'bold', color: DARK_TEXT }}>
+            {orders.filter(o => o.status === 'delivered').length}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter Buttons */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', overflowX: 'auto' }}>
+        {['all', 'pending_payment', 'pending_dispatch', 'washing', 'out_for_delivery', 'delivered'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '0.375rem',
+              border: 'none',
+              background: filter === f ? ORANGE : '#e5e7eb',
+              color: filter === f ? 'white' : DARK_TEXT,
+              cursor: 'pointer',
+              fontWeight: '500',
+              fontSize: '0.875rem',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.3s',
+            }}
+          >
+            {f === 'all' ? 'All Orders' : getStatusLabel(f)}
+          </button>
+        ))}
+      </div>
+
+      {/* Orders Table */}
+      <div style={{ background: 'white', borderRadius: '0.5rem', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: BG, borderBottom: `2px solid #e5e7eb` }}>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Order ID</th>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Customer</th>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Items</th>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Total</th>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Status</th>
+              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredOrders.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: LIGHT_GRAY }}>No orders found</td>
               </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id} className={styles.tableRow}>
-                  <td className={styles.td}>
-                    <code className={styles.code}>{order.id.slice(0, 8)}...</code>
-                  </td>
-                  <td className={styles.td}>{order.customer?.full_name || 'N/A'}</td>
-                  <td className={styles.td}>
-                    {order.order_items?.length || 0} item
-                    {order.order_items?.length !== 1 ? 's' : ''}
-                  </td>
-                  <td className={styles.td}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '6px 12px',
-                        borderRadius: '4px',
-                        backgroundColor: getStatusColor(order.status),
-                        color: '#fff',
-                        fontWeight: 'bold',
-                        fontSize: '12px',
-                      }}
-                    >
-                      {order.status?.replace(/_/g, ' ').toUpperCase()}
+            ) : (
+              filteredOrders.map(order => (
+                <tr key={order.id} style={{ borderBottom: `1px solid #e5e7eb`, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = BG} onMouseLeave={(e) => e.currentTarget.style.background = 'white'}>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: '600', color: ORANGE }}>{order.id.slice(0, 8)}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: DARK_TEXT }}>{order.profiles?.full_name || 'Unknown'}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: LIGHT_GRAY }}>{order.item_count || 'N/A'}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: '600', color: DARK_TEXT }}>${(order.total || 0).toFixed(2)}</td>
+                  <td style={{ padding: '1rem' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '0.25rem',
+                      background: getStatusColor(order.status),
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                    }}>
+                      {getStatusLabel(order.status)}
                     </span>
                   </td>
-                  <td className={styles.td}>
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </td>
-                  <td className={styles.td}>
-                    <Link href={`/orders/${order.id}`} className={styles.link}>
-                      View
-                    </Link>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: LIGHT_GRAY }}>
+                    {new Date(order.created_at).toLocaleTimeString()}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

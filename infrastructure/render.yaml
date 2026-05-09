@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: jiffylaundry-api
+    plan: free
+    runtime: node
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jiffylaundry-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: jiffylaundry-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+
+  - type: pserv
+    name: jiffylaundry-redis
+    plan: free
+    ipAllowList: []
+
+  - type: pserv
+    name: jiffylaundry-db
+    plan: free
+    ipAllowList: []
+    env:
+      - key: POSTGRES_DB
+        value: jiffylaundry
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_PASSWORD
+        sync: false
+    volumeMounts:
+      - name: postgres-data
+        mountPath: /var/lib/postgresql/data
+
+volumes:
+  - name: postgres-data
+    plan: free
