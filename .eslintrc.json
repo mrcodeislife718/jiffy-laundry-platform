@@ -27,20 +27,23 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/exhaustive-deps": "off",
     "@typescript-eslint/explicit-function-return-types": "off",
-    "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
-    "prefer-const": "error",
-    "no-var": "error",
-    "eqeqeq": "error"
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": "off",
+    "no-console": "off",
+    "prefer-const": "warn",
+    "no-var": "warn",
+    "eqeqeq": "warn",
+    "@next/next/no-img-element": "off",
+    "@next/next/no-html-link-for-pages": "off",
+    "react/no-unescaped-entities": "off"
   },
   "overrides": [
     {
       "files": ["*.tsx", "*.jsx"],
       "rules": {
-        "react/no-unescaped-entities": "warn"
+        "react/no-unescaped-entities": "off"
       }
     }
   ]

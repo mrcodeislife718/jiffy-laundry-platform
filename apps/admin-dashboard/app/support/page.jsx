@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/context/ThemeContext';
 import AdminCard from '@/components/AdminCard';
 import AdminInput from '@/components/AdminInput';
 import AdminTable from '@/components/AdminTable';
