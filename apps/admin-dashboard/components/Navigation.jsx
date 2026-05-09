@@ -66,30 +66,30 @@ export default function Navigation() {
       <div style={{ flex: 1 }}>
         {navItems.map((item, idx) => {
           const active = isActive(item.href);
-          const isSection = item.section;
-          
-          if (isSection) {
-            // Section header
-            return (
-              <div key={idx} style={{
-                padding: '1rem 1.5rem 0.5rem 1.5rem',
-                marginTop: idx > 0 ? '0.5rem' : 0,
-                fontSize: '0.65rem',
-                fontWeight: '700',
-                color: colors.textSecondary,
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}>
-                {item.section}
-              </div>
-            );
+          const sectionHeader = item.section ? (
+            <div key={`s-${idx}`} style={{
+              padding: '1rem 1.5rem 0.5rem 1.5rem',
+              marginTop: idx > 0 ? '0.5rem' : 0,
+              fontSize: '0.65rem',
+              fontWeight: '700',
+              color: colors.textSecondary,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}>
+              {item.section}
+            </div>
+          ) : null;
+
+          if (!item.href) {
+            return sectionHeader;
           }
-          
+
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
+            <div key={item.href}>
+              {sectionHeader}
+              <Link
+                href={item.href}
+                style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
@@ -107,6 +107,7 @@ export default function Navigation() {
               <span style={{ fontSize: '1.25rem' }}>{item.icon}</span>
               <span>{item.label}</span>
             </Link>
+            </div>
           );
         })}
       </div>

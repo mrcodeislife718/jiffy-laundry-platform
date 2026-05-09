@@ -388,72 +388,8 @@ export default function LiveOperationsCenter() {
             </div>
           </div>
         </div>
-
-        {/* Analytics Charts */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
-          <div style={{ background: colors.bgSecondary, borderRadius: '0.75rem', padding: '1.5rem', boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: '600', color: colors.text, margin: '0 0 1rem 0' }}>Order Trend</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={stats.dailyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
-                <XAxis dataKey="date" stroke={colors.textSecondary} />
-                <YAxis stroke={colors.textSecondary} />
-                <Tooltip contentStyle={{ background: colors.bgSecondary, border: `1px solid ${colors.border}`, color: colors.text }} />
-                <Line type="monotone" dataKey="orders" stroke={colors.primary} strokeWidth={2} dot={{ fill: colors.primary, r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ background: colors.bgSecondary, borderRadius: '0.75rem', padding: '1.5rem', boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: '600', color: colors.text, margin: '0 0 1rem 0' }}>Revenue Trend</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
-                <XAxis dataKey="date" stroke={colors.textSecondary} />
-                <YAxis stroke={colors.textSecondary} />
-                <Tooltip contentStyle={{ background: colors.bgSecondary, border: `1px solid ${colors.border}`, color: colors.text }} />
-                <Bar dataKey="revenue" fill={colors.primary} radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-      </div>
-
-      {/* Recent Orders */}
-      <div style={{ background: colors.bgSecondary, borderRadius: '0.75rem', padding: '1.5rem', boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: '600', color: colors.text, margin: '0 0 1rem 0' }}>Recent Orders</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
-                <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: colors.textSecondary }}>Order ID</th>
-                <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: colors.textSecondary }}>Customer</th>
-                <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: colors.textSecondary }}>Status</th>
-                <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: colors.textSecondary }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recentOrders.slice(0, 8).map(order => (
-                <tr key={order.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                  <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: colors.primary, fontWeight: '600' }}>#{order.id.slice(0, 8)}</td>
-                  <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: colors.text }}>Customer #{order.customer_id.slice(0, 6)}</td>
-                  <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
-                    <span style={{
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '0.25rem',
-                      background: order.status === 'delivered' ? colors.success : order.status === 'cancelled' ? colors.danger : colors.warning,
-                      color: 'white',
-                      fontWeight: '600',
-                      fontSize: '0.75rem',
-                    }}>
-                      {order.status.replace(/_/g, ' ').toUpperCase()}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: colors.text }}>${(order.total || 0).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
 }
+
