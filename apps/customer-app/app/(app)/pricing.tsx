@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { getServices } from '../../../packages/shared/orders';
+import { getServices } from '@jiffylaundry/shared';
 
 export default function PricingScreen() {
-  const { data: services = [], isLoading, error } = useQuery({
+  const { data: services = [], isLoading, error } = useQuery<any[]>({
     queryKey: ['services'],
     queryFn: getServices,
   });

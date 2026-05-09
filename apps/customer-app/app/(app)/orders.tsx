@@ -97,7 +97,7 @@ export default function OrdersScreen() {
         </View>
       ) : orders.length === 0 ? (
         <View className="flex-1 justify-center items-center px-6">
-          <Ionicons name="inbox" size={64} color="#D1D5DB" />
+          <Ionicons name="file-tray-outline" size={64} color="#D1D5DB" />
           <Text className="text-xl font-bold text-gray-900 dark:text-white mt-4 text-center">
             No {activeTab === 'all' ? '' : activeTab} orders yet
           </Text>

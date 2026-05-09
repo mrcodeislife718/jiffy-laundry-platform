@@ -27,8 +27,10 @@ export async function getSupabaseClient(token?: string) {
       autoRefreshToken: false,
       persistSession: false,
     },
-    headers: {
-      Authorization: `Bearer ${token}`,
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
   });
 }

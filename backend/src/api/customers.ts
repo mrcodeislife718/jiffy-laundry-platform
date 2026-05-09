@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, AuthRequest, requireRole } from '../middleware/auth.ts';
-import { asyncHandler, NotFoundError, ValidationError } from '../middleware/errorHandler.ts';
-import { supabaseAdmin } from '../config/supabase.ts';
+import { authenticate, AuthRequest, requireRole } from '../middleware/auth';
+import { asyncHandler, NotFoundError, ValidationError } from '../middleware/errorHandler';
+import { supabaseAdmin } from '../config/supabase';
 
 const router = Router();
 
