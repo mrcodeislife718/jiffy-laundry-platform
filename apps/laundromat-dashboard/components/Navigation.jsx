@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTheme } from '@/context/ThemeContext';
 
 const ORANGE = '#ff6b35';
-const DARK_TEXT = '#111827';
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { colors, isDark, setIsDark } = useTheme();
 
   const navItems = [
     { href: '/', label: '🏠 Home' },
@@ -18,8 +19,8 @@ export default function Navigation() {
 
   return (
     <nav style={{
-      background: 'white',
-      borderBottom: `2px solid #e5e7eb`,
+      background: colors.bgSecondary,
+      borderBottom: `2px solid ${colors.border}`,
       position: 'sticky',
       top: 0,
       zIndex: 50,
@@ -34,10 +35,10 @@ export default function Navigation() {
       }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
           <img src="/JiffyLaundry Logo.png" alt="JiffyLaundry" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-          <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: DARK_TEXT }}>Laundromat Ops</span>
+          <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: colors.text }}>Laundromat Ops</span>
         </Link>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {navItems.map(item => {
             const isActive = pathname === item.href;
             return (
@@ -48,7 +49,7 @@ export default function Navigation() {
                   padding: '0.75rem 1rem',
                   borderRadius: '0.375rem',
                   background: isActive ? ORANGE : 'transparent',
-                  color: isActive ? 'white' : DARK_TEXT,
+                  color: isActive ? 'white' : colors.text,
                   textDecoration: 'none',
                   fontWeight: isActive ? '600' : '500',
                   fontSize: '0.875rem',
@@ -60,6 +61,22 @@ export default function Navigation() {
               </Link>
             );
           })}
+          <button
+            onClick={() => setIsDark(!isDark)}
+            aria-label="Toggle theme"
+            style={{
+              marginLeft: '0.5rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.375rem',
+              border: `1px solid ${colors.border}`,
+              background: colors.bgTertiary,
+              color: colors.text,
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            {isDark ? '☀️ Light' : '🌙 Dark'}
+          </button>
         </div>
       </div>
     </nav>
